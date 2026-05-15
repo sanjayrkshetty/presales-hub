@@ -26,10 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <nav className="flex gap-1">
             {NAV.map(({ href, label }) => (
               <Link key={href} href={href}
-                className="px-3 py-1 text-[11px] font-medium tracking-wider uppercase rounded transition-colors"
-                style={{ color: "#94a3b8" }}
-                onMouseOver={e => (e.currentTarget.style.color = "#e2e8f0")}
-                onMouseOut={e => (e.currentTarget.style.color = "#94a3b8")}>
+                className="px-3 py-1 text-[11px] font-medium tracking-wider uppercase rounded transition-colors text-slate-400 hover:text-slate-200">
                 {label}
               </Link>
             ))}
