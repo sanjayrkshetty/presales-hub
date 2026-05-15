@@ -328,7 +328,7 @@ def seed():
             ))
 
         db.commit()
-        print(f"✓ Seeded: {len(clients)} clients, {len(stakeholders)} stakeholders, {len(opportunities)} opportunities")
+        print(f"[OK] Seeded: {len(clients)} clients, {len(stakeholders)} stakeholders, {len(opportunities)} opportunities")
         print("  HDFC SOC Transformation  → security_review  (score: 87)")
         print("  Infosys Zero Trust       → approval         (score: 92, OVERDUE)")
         print("  Apollo SIEM Migration    → drafting         (score: 71)")
