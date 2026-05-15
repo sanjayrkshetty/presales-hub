@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: presales
+      POSTGRES_PASSWORD: presales_dev
+      POSTGRES_DB: presales_hub
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U presales"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  hub-api:
+    build:
+      context: ../apps/hub-api
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      - DATABASE_URL=postgresql://presales:presales_dev@postgres:5432/presales_hub
+      - PROPOSAL_ENGINE_URL=http://host.docker.internal:8004
+      - ALLOWED_ORIGIN=http://localhost:3002
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pg-data:
