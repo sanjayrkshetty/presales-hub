@@ -10,7 +10,10 @@ from models import Opportunity, SlaConfig, ActivityFeed
 logger = logging.getLogger("sla_worker")
 
 _CHECK_INTERVAL = 300  # 5 minutes
-_BREACHED_IDS: set[str] = set()
+
+# B3: Keyed by (opp_id, stage) so re-entry to a new stage fires a fresh alert.
+# Using opp_id alone caused silent misses after stage transitions.
+_BREACHED_IDS: set[tuple[str, str]] = set()
 
 
 def _check_slas():
@@ -25,18 +28,21 @@ def _check_slas():
             hours = sla_map.get(opp.stage)
             if not hours:
                 continue
-            elapsed = (datetime.utcnow() - (opp.updated_at or opp.created_at)).total_seconds() / 3600
-            if elapsed > hours and opp.id not in _BREACHED_IDS:
-                _BREACHED_IDS.add(opp.id)
-                logger.warning(f"SLA BREACH: {opp.title} [{opp.stage}] — {round(elapsed - hours, 1)}h overdue")
 
-                # Emit alert to activity feed
+            elapsed = (datetime.utcnow() - (opp.updated_at or opp.created_at)).total_seconds() / 3600
+            breach_key = (str(opp.id), opp.stage)
+
+            if elapsed > hours and breach_key not in _BREACHED_IDS:
+                _BREACHED_IDS.add(breach_key)
+                overdue = round(elapsed - hours, 1)
+                logger.warning(f"SLA BREACH: {opp.title} [{opp.stage}] — {overdue}h overdue")
+
                 if opp.proposal:
                     db.add(ActivityFeed(
                         proposal_id=opp.proposal.id,
                         actor_name="SLA Monitor",
                         action_type="sla_breach",
-                        description=f"SLA breached: {opp.stage.replace('_', ' ').title()} overdue by {round(elapsed - hours, 1)}h",
+                        description=f"SLA breached: {opp.stage.replace('_', ' ').title()} overdue by {overdue}h",
                         is_alert=True,
                     ))
 

@@ -119,6 +119,7 @@ INSERT INTO sla_configs VALUES
     ('drafting',         72,  'solution_architect'),
     ('technical_review', 24,  'solution_architect'),
     ('security_review',  24,  'security_reviewer'),
+    ('delivery_review',  24,  'solution_architect'),
     ('finance_review',   16,  'finance'),
     ('legal_review',     24,  'legal'),
     ('approval',          4,  'presales_lead'),

@@ -8,8 +8,19 @@ from sqlalchemy.orm import Session, joinedload
 from db.database import get_db
 from models import Proposal, Stakeholder, Assignment, ActivityFeed, AuditLog, SlaConfig, SmeRoutingRule
 from models.proposal import TRANSITIONS, PARALLEL_REVIEW_GROUP
+from models.approval import Approval
 
 router = APIRouter(prefix="/api/proposals", tags=["proposals"])
+
+# Maps each review/approval stage to the stakeholder role responsible for signing off
+STAGE_REVIEWER_ROLE: dict[str, str] = {
+    "technical_review": "solution_architect",
+    "security_review":  "security_reviewer",
+    "delivery_review":  "solution_architect",
+    "finance_review":   "finance",
+    "legal_review":     "legal",
+    "approval":         "presales_lead",
+}
 
 
 class TransitionRequest(BaseModel):
@@ -33,30 +44,55 @@ def _add_activity(db: Session, proposal_id: str, actor_name: str, action_type: s
     ))
 
 
+def _find_reviewer(db: Session, role: str) -> Stakeholder | None:
+    return db.scalar(select(Stakeholder).where(Stakeholder.role == role))
+
+
 @router.post("/{proposal_id}/transition")
 def transition_proposal(proposal_id: str, req: TransitionRequest, db: Session = Depends(get_db)):
     proposal = db.scalar(select(Proposal).where(Proposal.id == proposal_id))
     if not proposal:
         raise HTTPException(404, "Proposal not found")
 
+    # Validate stage transition is in the allowed graph
     allowed = TRANSITIONS.get(proposal.stage, [])
     if req.to_stage not in allowed:
         raise HTTPException(422, f"Invalid transition: {proposal.stage} → {req.to_stage}. Allowed: {allowed}")
 
-    # For parallel review stages, entering any one of them starts that stage
-    # Exiting to finance_review requires all three completed (handled via approvals, simplified here)
+    # B2: Gate — exiting any parallel review to finance_review requires ALL 3 completed
+    if proposal.stage in PARALLEL_REVIEW_GROUP and req.to_stage == "finance_review":
+        parallel_approvals = [a for a in proposal.approvals if a.stage in PARALLEL_REVIEW_GROUP]
+        if len(parallel_approvals) < len(PARALLEL_REVIEW_GROUP):
+            missing = sorted(PARALLEL_REVIEW_GROUP - {a.stage for a in parallel_approvals})
+            raise HTTPException(
+                422,
+                f"Parallel review approvals not yet initialized for: {missing}. "
+                f"Transition into a review stage first to initialize all 3 approval records."
+            )
+        incomplete = sorted(a.stage for a in parallel_approvals if a.status != "approved")
+        if incomplete:
+            raise HTTPException(
+                422,
+                f"Cannot advance to finance_review: reviews still pending in {incomplete}. "
+                f"All three parallel reviews (technical, security, delivery) must be approved."
+            )
+
+    # B13 (architectural fix): entering any parallel review stage initializes Approval records
+    # for ALL 3 stages via role-based routing. These are review approvals, not SME assignments.
     if req.to_stage in PARALLEL_REVIEW_GROUP and proposal.stage == "drafting":
-        # Create parallel approvals for all 3 review stages if not already present
         existing_stages = {a.stage for a in proposal.approvals}
         for review_stage in sorted(PARALLEL_REVIEW_GROUP):
             if review_stage not in existing_stages:
+                reviewer_role = STAGE_REVIEWER_ROLE.get(review_stage)
+                reviewer = _find_reviewer(db, reviewer_role) if reviewer_role else None
                 sla = db.get(SlaConfig, review_stage)
                 due = datetime.utcnow() + timedelta(hours=sla.hours_allowed) if sla else None
-                db.add(Assignment(
+                db.add(Approval(
                     proposal_id=proposal.id,
-                    stakeholder_id=None,
-                    role="reviewer",
-                    bu=None,
+                    approver_id=reviewer.id if reviewer else None,
+                    stage=review_stage,
+                    parallel_group="review_round_1",
+                    order_index=0,
                     status="pending",
                     due_at=due,
                 ))
@@ -111,11 +147,20 @@ def assign_sme(proposal_id: str, req: AssignSmeRequest, db: Session = Depends(ge
         .order_by(SmeRoutingRule.priority)
     ).all()
 
+    # B11: Guard unknown RFP type — never silently assign a random SME
+    if not rules and not req.required_skills:
+        raise HTTPException(
+            404,
+            f"No routing rules found for RFP type: '{req.rfp_type}'. "
+            f"Add routing rules to sme_routing_rules or provide required_skills explicitly."
+        )
+
     required_skills = req.required_skills or [r.required_expertise for r in rules]
 
-    # Find available SMEs
-    all_smes = db.scalars(
-        select(Stakeholder).where(Stakeholder.role == "sme")
+    # Find available SMEs (role=sme) and solution architects who are within workload limit
+    ASSIGNABLE_ROLES = ("sme", "solution_architect", "security_reviewer")
+    all_candidates = db.scalars(
+        select(Stakeholder).where(Stakeholder.role.in_(ASSIGNABLE_ROLES))
     ).all()
 
     def score_sme(sme: Stakeholder) -> int:
@@ -124,13 +169,13 @@ def assign_sme(proposal_id: str, req: AssignSmeRequest, db: Session = Depends(ge
         workload_penalty = sme.current_workload * 2
         return overlap * 10 - workload_penalty
 
-    available = [s for s in all_smes if s.current_workload < 4]
+    available = [s for s in all_candidates if s.current_workload < 4]
+    if not available:
+        raise HTTPException(422, "All SMEs and solution architects are at maximum workload capacity")
+
     ranked = sorted(available, key=score_sme, reverse=True)[:3]
 
-    if not ranked:
-        raise HTTPException(422, "No available SMEs for this RFP type")
-
-    # Assign top SME
+    # Assign top scorer
     top_sme = ranked[0]
     sla = db.get(SlaConfig, "sme_assignment")
     due = datetime.utcnow() + timedelta(hours=sla.hours_allowed) if sla else None
@@ -169,7 +214,6 @@ def assign_sme(proposal_id: str, req: AssignSmeRequest, db: Session = Depends(ge
 
 @router.get("/{proposal_id}/approvals")
 def get_approvals(proposal_id: str, db: Session = Depends(get_db)):
-    from models.approval import Approval
     approvals = db.scalars(
         select(Approval)
         .where(Approval.proposal_id == proposal_id)

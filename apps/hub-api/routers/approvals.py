@@ -25,8 +25,31 @@ def decide(approval_id: str, req: DecisionRequest, db: Session = Depends(get_db)
     approval = db.scalar(select(Approval).where(Approval.id == approval_id))
     if not approval:
         raise HTTPException(404, "Approval not found")
+
     if approval.status not in ("pending", "escalated"):
         raise HTTPException(422, f"Approval already finalized: {approval.status}")
+
+    # B1: Authorization — if both actor and assigned approver are known, they must match.
+    # System-driven decisions (no actor_id) and unassigned approvals (no approver_id) are allowed.
+    if req.actor_id and approval.approver_id and req.actor_id != str(approval.approver_id):
+        db.add(AuditLog(
+            entity_type="approval",
+            entity_id=approval.id,
+            actor_id=req.actor_id,
+            action="unauthorized_approval_attempt",
+            from_state=approval.status,
+            to_state=req.status,
+            meta={
+                "reason": f"actor {req.actor_id} is not the assigned approver {approval.approver_id}",
+                "stage": approval.stage,
+            },
+        ))
+        db.commit()
+        raise HTTPException(
+            403,
+            "Not authorized: you are not the assigned approver for this decision. "
+            "Unauthorized attempt has been logged."
+        )
 
     approval.status = req.status
     approval.decision_note = req.decision_note
