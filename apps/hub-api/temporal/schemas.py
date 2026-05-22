@@ -110,3 +110,40 @@ class ReviewDecision:
 class ParallelReviewResult:
     all_approved: bool
     decisions: dict = field(default_factory=dict)
+
+
+# ── Agent workflow types ───────────────────────────────────────────────────────
+
+@dataclass
+class AgentTaskInput:
+    agent_type: str
+    input_data: dict = field(default_factory=dict)
+    proposal_id: Optional[str] = None
+    opportunity_id: Optional[str] = None
+    requires_approval: bool = False
+    authority_level: str = "recommend"
+    correlation_id: str = ""
+
+
+@dataclass
+class AgentTaskResult:
+    task_id: str
+    agent_type: str
+    status: str
+    output: dict = field(default_factory=dict)
+    confidence: float = 0.0
+    grounding_score: float = 0.0
+    tools_used: list = field(default_factory=list)
+    tokens_used: int = 0
+    latency_ms: float = 0.0
+    requires_human_review: bool = False
+    error: Optional[str] = None
+
+
+@dataclass
+class AgentPlanInput:
+    plan_name: str
+    proposal_id: Optional[str] = None
+    opportunity_id: Optional[str] = None
+    base_input: dict = field(default_factory=dict)
+    correlation_id: str = ""

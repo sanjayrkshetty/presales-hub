@@ -37,9 +37,11 @@ async def main() -> None:
     from temporal.workflows.proposal import ProposalLifecycleWorkflow
     from temporal.workflows.approval import ParallelReviewWorkflow
     from temporal.workflows.sla import SlaEscalationWorkflow
+    from temporal.workflows.agent import AgentOrchestratorWorkflow, AgentPlanWorkflow
     from temporal.activities.proposal import persist_stage_transition, initialize_parallel_approvals
     from temporal.activities.approval import persist_approval_decision
     from temporal.activities.notification import emit_workflow_event, escalate_sla
+    from temporal.activities.agent import execute_agent_task, persist_agent_result
 
     logger.info("Connecting to Temporal at %s", TEMPORAL_HOST)
     client = await Client.connect(TEMPORAL_HOST)
@@ -51,6 +53,8 @@ async def main() -> None:
             ProposalLifecycleWorkflow,
             ParallelReviewWorkflow,
             SlaEscalationWorkflow,
+            AgentOrchestratorWorkflow,
+            AgentPlanWorkflow,
         ],
         activities=[
             persist_stage_transition,
@@ -58,6 +62,8 @@ async def main() -> None:
             persist_approval_decision,
             emit_workflow_event,
             escalate_sla,
+            execute_agent_task,
+            persist_agent_result,
         ],
     )
 

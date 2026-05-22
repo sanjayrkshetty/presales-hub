@@ -31,6 +31,16 @@ app.dependency_overrides[get_db] = override_get_db
 
 
 @pytest.fixture(autouse=True)
+def force_mock_llm_provider():
+    """Force mock LLM provider for all tests — avoids real API calls."""
+    import copilot_engine.config as cfg
+    orig = cfg.LLM_PROVIDER
+    cfg.LLM_PROVIDER = "mock"
+    yield
+    cfg.LLM_PROVIDER = orig
+
+
+@pytest.fixture(autouse=True)
 def reset_db():
     """Drop and recreate all tables before each test for full isolation."""
     import models.opportunity   # noqa: F401

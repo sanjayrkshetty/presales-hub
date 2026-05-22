@@ -6,6 +6,7 @@ from models.intelligence import (
     ProposalScore, SlaPrediction, BottleneckSnapshot,
     SmeRecommendationAudit, ApprovalAnomaly, WorkflowTimingMetric,
 )
+from models.memory import MemoryChunk
 
 __all__ = [
     "Stakeholder", "Client", "Opportunity",
@@ -13,4 +14,5 @@ __all__ = [
     "Approval", "SmeRoutingRule",
     "ProposalScore", "SlaPrediction", "BottleneckSnapshot",
     "SmeRecommendationAudit", "ApprovalAnomaly", "WorkflowTimingMetric",
+    "MemoryChunk",
 ]
