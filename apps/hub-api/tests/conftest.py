@@ -38,6 +38,7 @@ def reset_db():
     import models.stakeholder   # noqa: F401
     import models.approval      # noqa: F401
     import models.intelligence  # noqa: F401 — intelligence tables
+    import models.memory        # noqa: F401 — memory_chunks table
     Base.metadata.drop_all(bind=TEST_ENGINE)
     Base.metadata.create_all(bind=TEST_ENGINE)
     yield
