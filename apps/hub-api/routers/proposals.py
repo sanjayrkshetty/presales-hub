@@ -6,6 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from db.database import get_db
+from events.bus import publish
+from events.schema import ProposalTransitionedEvent, SmeAssignedEvent
 from models import Proposal, Stakeholder, Assignment, ActivityFeed, AuditLog, SlaConfig, SmeRoutingRule
 from models.proposal import TRANSITIONS, PARALLEL_REVIEW_GROUP
 from models.approval import Approval
@@ -131,6 +133,12 @@ def transition_proposal(proposal_id: str, req: TransitionRequest, db: Session = 
     )
 
     db.commit()
+    publish(ProposalTransitionedEvent(
+        entity_id=proposal_id,
+        actor_id=req.actor_id,
+        from_stage=from_stage,
+        to_stage=req.to_stage,
+    ))
     return {"proposal_id": proposal_id, "from_stage": from_stage, "to_stage": req.to_stage}
 
 
@@ -205,7 +213,12 @@ def assign_sme(proposal_id: str, req: AssignSmeRequest, db: Session = Depends(ge
     )
 
     db.commit()
-
+    publish(SmeAssignedEvent(
+        entity_id=proposal_id,
+        sme_id=top_sme.id,
+        sme_name=top_sme.name,
+        rfp_type=req.rfp_type,
+    ))
     return {
         "assigned": {"id": top_sme.id, "name": top_sme.name, "bu": top_sme.bu},
         "alternatives": [{"id": s.id, "name": s.name, "workload": s.current_workload} for s in ranked[1:]],

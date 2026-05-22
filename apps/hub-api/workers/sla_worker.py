@@ -5,6 +5,8 @@ from datetime import datetime
 from sqlalchemy import select
 
 from db.database import SessionLocal
+from events.bus import publish
+from events.schema import SlaBreachEvent
 from models import Opportunity, SlaConfig, ActivityFeed
 
 logger = logging.getLogger("sla_worker")
@@ -45,6 +47,13 @@ def _check_slas():
                         description=f"SLA breached: {opp.stage.replace('_', ' ').title()} overdue by {overdue}h",
                         is_alert=True,
                     ))
+
+                publish(SlaBreachEvent(
+                    entity_id=str(opp.id),
+                    stage=opp.stage,
+                    overdue_hours=overdue,
+                    metadata={"title": opp.title},
+                ))
 
         db.commit()
     except Exception:

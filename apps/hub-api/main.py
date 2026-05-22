@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
 from db.database import init_db, SessionLocal
+from events.broadcaster import broadcaster
 from models import ActivityFeed
 from routers import opportunities, proposals, approvals, stakeholders, analytics, ai
 from workers import sla_worker
@@ -16,17 +17,22 @@ from workers import sla_worker
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("hub-api")
 
-# WebSocket connection managers
-activity_clients: list[WebSocket] = []
-sla_clients: list[WebSocket] = []
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     sla_worker.start()
+    listener_task = asyncio.create_task(
+        broadcaster.start_redis_listener(),
+        name="redis-listener",
+    )
     logger.info("Hub API ready")
     yield
+    listener_task.cancel()
+    try:
+        await listener_task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(title="Presales Hub API", version="1.0.0", lifespan=lifespan)
@@ -60,10 +66,10 @@ def health():
 @app.websocket("/ws/activity")
 async def ws_activity(ws: WebSocket):
     await ws.accept()
-    activity_clients.append(ws)
-    logger.info(f"Activity WS connected. Total: {len(activity_clients)}")
+    await broadcaster.register(ws)
+    logger.info("Activity WS connected. Total clients: %d", len(broadcaster._clients))
     try:
-        # Send last 20 activity items on connect
+        # Backfill: send last 20 activity items on connect
         db = SessionLocal()
         try:
             items = db.scalars(
@@ -73,6 +79,7 @@ async def ws_activity(ws: WebSocket):
             ).all()
             for item in reversed(items):
                 await ws.send_text(json.dumps({
+                    "event_type": "activity.backfill",
                     "id": item.id,
                     "proposal_id": item.proposal_id,
                     "actor_name": item.actor_name,
@@ -84,39 +91,43 @@ async def ws_activity(ws: WebSocket):
         finally:
             db.close()
 
-        # Keep alive — broadcast happens from push_activity()
+        # Keep the connection alive; broadcaster pushes events as they arrive
         while True:
             await asyncio.sleep(30)
-            await ws.send_text(json.dumps({"type": "ping"}))
+            await ws.send_text(json.dumps({"event_type": "ping"}))
 
     except WebSocketDisconnect:
-        activity_clients.remove(ws)
-        logger.info(f"Activity WS disconnected. Total: {len(activity_clients)}")
+        pass
+    finally:
+        await broadcaster.unregister(ws)
+        logger.info("Activity WS disconnected. Total clients: %d", len(broadcaster._clients))
 
 
 @app.websocket("/ws/sla-alerts")
 async def ws_sla(ws: WebSocket):
+    """SLA alert stream — receives all events; clients filter by event_type='sla.breach'."""
     await ws.accept()
-    sla_clients.append(ws)
+    await broadcaster.register(ws)
     try:
         while True:
-            await asyncio.sleep(60)
-            # SLA worker writes alerts to activity_feed; this WS polls for them
-            db = SessionLocal()
-            try:
-                alerts = db.scalars(
-                    select(ActivityFeed)
-                    .where(ActivityFeed.is_alert == True)  # noqa: E712
-                    .order_by(ActivityFeed.created_at.desc())
-                    .limit(5)
-                ).all()
-                for alert in alerts:
-                    await ws.send_text(json.dumps({
-                        "proposal_id": alert.proposal_id,
-                        "description": alert.description,
-                        "created_at": alert.created_at.isoformat(),
-                    }))
-            finally:
-                db.close()
+            await asyncio.sleep(30)
+            await ws.send_text(json.dumps({"event_type": "ping"}))
     except WebSocketDisconnect:
-        sla_clients.remove(ws)
+        pass
+    finally:
+        await broadcaster.unregister(ws)
+
+
+@app.websocket("/ws/events")
+async def ws_events(ws: WebSocket):
+    """Unified event stream — receives all domain events as JSON."""
+    await ws.accept()
+    await broadcaster.register(ws)
+    try:
+        while True:
+            await asyncio.sleep(30)
+            await ws.send_text(json.dumps({"event_type": "ping"}))
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await broadcaster.unregister(ws)

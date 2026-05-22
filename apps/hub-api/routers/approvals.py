@@ -5,6 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from db.database import get_db
+from events.bus import publish
+from events.schema import ApprovalDecisionEvent
 from models import AuditLog, ActivityFeed, Stakeholder
 from models.approval import Approval
 
@@ -80,4 +82,11 @@ def decide(approval_id: str, req: DecisionRequest, db: Session = Depends(get_db)
     ))
 
     db.commit()
+    publish(ApprovalDecisionEvent(
+        entity_id=approval_id,
+        actor_id=req.actor_id,
+        proposal_id=approval.proposal_id,
+        stage=approval.stage,
+        status=req.status,
+    ))
     return {"approval_id": approval_id, "status": req.status}
