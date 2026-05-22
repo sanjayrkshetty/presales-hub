@@ -37,6 +37,7 @@ def reset_db():
     import models.proposal      # noqa: F401
     import models.stakeholder   # noqa: F401
     import models.approval      # noqa: F401
+    import models.intelligence  # noqa: F401 — intelligence tables
     Base.metadata.drop_all(bind=TEST_ENGINE)
     Base.metadata.create_all(bind=TEST_ENGINE)
     yield
