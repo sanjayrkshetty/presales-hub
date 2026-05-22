@@ -1,0 +1,17 @@
+# Temporal dynamic configuration for local SQL (PostgreSQL) dev setup.
+# Reduces default retention and enables developer-friendly settings.
+# https://docs.temporal.io/self-hosted-guide/dynamic-config
+
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true
+
+frontend.enableClientVersionCheck:
+  - value: false
+
+# Shorter default namespace retention for local dev (7 days vs default 3 days)
+frontend.defaultNamespaceDuration:
+  - value: "168h"
+
+# Allow larger workflows in dev
+limit.maxIDLength:
+  - value: 1000

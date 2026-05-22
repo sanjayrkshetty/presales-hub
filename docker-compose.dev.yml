@@ -1,4 +1,5 @@
 services:
+  # ── Redis ──────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -8,14 +9,59 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes
 
+  # ── Temporal ───────────────────────────────────────────────────────────────
+  # PostgreSQL backing store for Temporal (required by auto-setup image)
+  temporal-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_DB: temporal
+    volumes:
+      - temporal_db:/var/lib/postgresql/data
+
+  # Temporal server (all-in-one: frontend + history + matching + worker service)
+  temporal:
+    image: temporalio/auto-setup:1.24
+    restart: unless-stopped
+    ports:
+      - "7233:7233"    # gRPC API (TEMPORAL_HOST=localhost:7233)
+    depends_on:
+      - temporal-db
+    environment:
+      DB: postgresql
+      DB_PORT: 5432
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: temporal
+      POSTGRES_SEEDS: temporal-db
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    volumes:
+      - ./config/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
+
+  # Temporal Web UI  →  http://localhost:8080
+  temporal-ui:
+    image: temporalio/ui:2.26
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - temporal
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:8080
+
+  # ── Observability ──────────────────────────────────────────────────────────
+  # Jaeger (OTLP HTTP + UI)  →  http://localhost:16686
   jaeger:
     image: jaegertracing/all-in-one:1.57
     restart: unless-stopped
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:
-      - "16686:16686"  # Jaeger UI  →  http://localhost:16686
-      - "4318:4318"    # OTLP HTTP receiver (set OTLP_ENDPOINT=http://localhost:4318)
+      - "16686:16686"  # Jaeger UI
+      - "4318:4318"    # OTLP HTTP  (OTLP_ENDPOINT=http://localhost:4318)
 
 volumes:
   redis_data:
+  temporal_db:
