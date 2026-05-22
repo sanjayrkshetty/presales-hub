@@ -9,6 +9,8 @@ from events.bus import publish
 from events.schema import ApprovalDecisionEvent
 from models import AuditLog, ActivityFeed, Stakeholder
 from models.approval import Approval
+from telemetry.context import set_actor_id
+from telemetry.tracing import trace_span
 
 router = APIRouter(prefix="/api/approvals", tags=["approvals"])
 
@@ -21,6 +23,8 @@ class DecisionRequest(BaseModel):
 
 @router.post("/{approval_id}/decide")
 def decide(approval_id: str, req: DecisionRequest, db: Session = Depends(get_db)):
+    if req.actor_id:
+        set_actor_id(req.actor_id)
     if req.status not in ("approved", "rejected", "escalated", "bypassed"):
         raise HTTPException(422, "status must be: approved | rejected | escalated | bypassed")
 

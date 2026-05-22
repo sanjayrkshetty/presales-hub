@@ -11,6 +11,8 @@ from events.schema import ProposalTransitionedEvent, SmeAssignedEvent
 from models import Proposal, Stakeholder, Assignment, ActivityFeed, AuditLog, SlaConfig, SmeRoutingRule
 from models.proposal import TRANSITIONS, PARALLEL_REVIEW_GROUP
 from models.approval import Approval
+from telemetry.context import set_proposal_id, set_actor_id
+from telemetry.tracing import trace_span, record_workflow_transition
 
 router = APIRouter(prefix="/api/proposals", tags=["proposals"])
 
@@ -52,6 +54,10 @@ def _find_reviewer(db: Session, role: str) -> Stakeholder | None:
 
 @router.post("/{proposal_id}/transition")
 def transition_proposal(proposal_id: str, req: TransitionRequest, db: Session = Depends(get_db)):
+    set_proposal_id(proposal_id)
+    if req.actor_id:
+        set_actor_id(req.actor_id)
+
     proposal = db.scalar(select(Proposal).where(Proposal.id == proposal_id))
     if not proposal:
         raise HTTPException(404, "Proposal not found")
@@ -133,6 +139,12 @@ def transition_proposal(proposal_id: str, req: TransitionRequest, db: Session = 
     )
 
     db.commit()
+    with trace_span(
+        "workflow.transition",
+        from_stage=from_stage,
+        to_stage=req.to_stage,
+    ) as span:
+        record_workflow_transition(span, from_stage, req.to_stage, proposal_id)
     publish(ProposalTransitionedEvent(
         entity_id=proposal_id,
         actor_id=req.actor_id,
@@ -144,6 +156,7 @@ def transition_proposal(proposal_id: str, req: TransitionRequest, db: Session = 
 
 @router.post("/{proposal_id}/assign-sme")
 def assign_sme(proposal_id: str, req: AssignSmeRequest, db: Session = Depends(get_db)):
+    set_proposal_id(proposal_id)
     proposal = db.scalar(select(Proposal).where(Proposal.id == proposal_id))
     if not proposal:
         raise HTTPException(404, "Proposal not found")

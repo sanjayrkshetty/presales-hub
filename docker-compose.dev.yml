@@ -8,5 +8,14 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"  # Jaeger UI  →  http://localhost:16686
+      - "4318:4318"    # OTLP HTTP receiver (set OTLP_ENDPOINT=http://localhost:4318)
+
 volumes:
   redis_data:

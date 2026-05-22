@@ -8,6 +8,7 @@ from db.database import SessionLocal
 from events.bus import publish
 from events.schema import SlaBreachEvent
 from models import Opportunity, SlaConfig, ActivityFeed
+from telemetry.tracing import trace_span
 
 logger = logging.getLogger("sla_worker")
 
@@ -19,47 +20,56 @@ _BREACHED_IDS: set[tuple[str, str]] = set()
 
 
 def _check_slas():
-    db = SessionLocal()
-    try:
-        opps = db.scalars(select(Opportunity)).all()
-        sla_map = {s.stage: s.hours_allowed for s in db.scalars(select(SlaConfig)).all()}
+    with trace_span("sla_worker.check"):
+        db = SessionLocal()
+        try:
+            opps = db.scalars(select(Opportunity)).all()
+            sla_map = {s.stage: s.hours_allowed for s in db.scalars(select(SlaConfig)).all()}
 
-        for opp in opps:
-            if opp.stage in ("closed_won", "closed_lost"):
-                continue
-            hours = sla_map.get(opp.stage)
-            if not hours:
-                continue
+            for opp in opps:
+                if opp.stage in ("closed_won", "closed_lost"):
+                    continue
+                hours = sla_map.get(opp.stage)
+                if not hours:
+                    continue
 
-            elapsed = (datetime.utcnow() - (opp.updated_at or opp.created_at)).total_seconds() / 3600
-            breach_key = (str(opp.id), opp.stage)
+                elapsed = (datetime.utcnow() - (opp.updated_at or opp.created_at)).total_seconds() / 3600
+                breach_key = (str(opp.id), opp.stage)
 
-            if elapsed > hours and breach_key not in _BREACHED_IDS:
-                _BREACHED_IDS.add(breach_key)
-                overdue = round(elapsed - hours, 1)
-                logger.warning(f"SLA BREACH: {opp.title} [{opp.stage}] — {overdue}h overdue")
+                if elapsed > hours and breach_key not in _BREACHED_IDS:
+                    _BREACHED_IDS.add(breach_key)
+                    overdue = round(elapsed - hours, 1)
+                    logger.warning(
+                        "SLA breach detected",
+                        extra={
+                            "opp_id": str(opp.id),
+                            "title": opp.title,
+                            "stage": opp.stage,
+                            "overdue_hours": overdue,
+                        },
+                    )
 
-                if opp.proposal:
-                    db.add(ActivityFeed(
-                        proposal_id=opp.proposal.id,
-                        actor_name="SLA Monitor",
-                        action_type="sla_breach",
-                        description=f"SLA breached: {opp.stage.replace('_', ' ').title()} overdue by {overdue}h",
-                        is_alert=True,
+                    if opp.proposal:
+                        db.add(ActivityFeed(
+                            proposal_id=opp.proposal.id,
+                            actor_name="SLA Monitor",
+                            action_type="sla_breach",
+                            description=f"SLA breached: {opp.stage.replace('_', ' ').title()} overdue by {overdue}h",
+                            is_alert=True,
+                        ))
+
+                    publish(SlaBreachEvent(
+                        entity_id=str(opp.id),
+                        stage=opp.stage,
+                        overdue_hours=overdue,
+                        metadata={"title": opp.title},
                     ))
 
-                publish(SlaBreachEvent(
-                    entity_id=str(opp.id),
-                    stage=opp.stage,
-                    overdue_hours=overdue,
-                    metadata={"title": opp.title},
-                ))
-
-        db.commit()
-    except Exception:
-        logger.exception("SLA check failed")
-    finally:
-        db.close()
+            db.commit()
+        except Exception:
+            logger.exception("SLA check failed")
+        finally:
+            db.close()
 
 
 def _run():

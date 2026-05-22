@@ -8,19 +8,24 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
-from db.database import init_db, SessionLocal
+from db.database import init_db, SessionLocal, engine
 from events.broadcaster import broadcaster
 from models import ActivityFeed
 from routers import opportunities, proposals, approvals, stakeholders, analytics, ai
+from telemetry import setup_logging, setup_telemetry
+from telemetry.context import set_correlation_id, new_correlation_id
+from telemetry.middleware import CorrelationIdMiddleware
+from telemetry.tracing import trace_span
 from workers import sla_worker
 
-logging.basicConfig(level=logging.INFO)
+setup_logging()
 logger = logging.getLogger("hub-api")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    setup_telemetry(app=app, engine=engine)
     sla_worker.start()
     listener_task = asyncio.create_task(
         broadcaster.start_redis_listener(),
@@ -37,6 +42,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Presales Hub API", version="1.0.0", lifespan=lifespan)
 
+# CorrelationIdMiddleware must be added BEFORE CORSMiddleware so that
+# the correlation ID is in context for all downstream middleware/routes.
+app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -66,10 +74,19 @@ def health():
 @app.websocket("/ws/activity")
 async def ws_activity(ws: WebSocket):
     await ws.accept()
-    await broadcaster.register(ws)
-    logger.info("Activity WS connected. Total clients: %d", len(broadcaster._clients))
+
+    # WebSocket sessions have no HTTP middleware — assign their own correlation ID.
+    cid = new_correlation_id()
+    set_correlation_id(cid)
+
+    with trace_span("websocket.activity.connect"):
+        await broadcaster.register(ws)
+    logger.info(
+        "Activity WS connected",
+        extra={"total_clients": len(broadcaster._clients), "ws_correlation_id": cid},
+    )
+
     try:
-        # Backfill: send last 20 activity items on connect
         db = SessionLocal()
         try:
             items = db.scalars(
@@ -91,7 +108,6 @@ async def ws_activity(ws: WebSocket):
         finally:
             db.close()
 
-        # Keep the connection alive; broadcaster pushes events as they arrive
         while True:
             await asyncio.sleep(30)
             await ws.send_text(json.dumps({"event_type": "ping"}))
@@ -99,15 +115,22 @@ async def ws_activity(ws: WebSocket):
     except WebSocketDisconnect:
         pass
     finally:
-        await broadcaster.unregister(ws)
-        logger.info("Activity WS disconnected. Total clients: %d", len(broadcaster._clients))
+        with trace_span("websocket.activity.disconnect"):
+            await broadcaster.unregister(ws)
+        logger.info(
+            "Activity WS disconnected",
+            extra={"total_clients": len(broadcaster._clients)},
+        )
 
 
 @app.websocket("/ws/sla-alerts")
 async def ws_sla(ws: WebSocket):
-    """SLA alert stream — receives all events; clients filter by event_type='sla.breach'."""
+    """SLA alert stream. Clients filter by event_type='sla.breach'."""
     await ws.accept()
-    await broadcaster.register(ws)
+    cid = new_correlation_id()
+    set_correlation_id(cid)
+    with trace_span("websocket.sla.connect"):
+        await broadcaster.register(ws)
     try:
         while True:
             await asyncio.sleep(30)
@@ -115,14 +138,18 @@ async def ws_sla(ws: WebSocket):
     except WebSocketDisconnect:
         pass
     finally:
-        await broadcaster.unregister(ws)
+        with trace_span("websocket.sla.disconnect"):
+            await broadcaster.unregister(ws)
 
 
 @app.websocket("/ws/events")
 async def ws_events(ws: WebSocket):
-    """Unified event stream — receives all domain events as JSON."""
+    """Unified domain event stream — all event types."""
     await ws.accept()
-    await broadcaster.register(ws)
+    cid = new_correlation_id()
+    set_correlation_id(cid)
+    with trace_span("websocket.events.connect"):
+        await broadcaster.register(ws)
     try:
         while True:
             await asyncio.sleep(30)
@@ -130,4 +157,5 @@ async def ws_events(ws: WebSocket):
     except WebSocketDisconnect:
         pass
     finally:
-        await broadcaster.unregister(ws)
+        with trace_span("websocket.events.disconnect"):
+            await broadcaster.unregister(ws)
