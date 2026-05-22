@@ -11,7 +11,7 @@ from sqlalchemy import select
 from db.database import init_db, SessionLocal, engine
 from events.broadcaster import broadcaster
 from models import ActivityFeed
-from routers import opportunities, proposals, approvals, stakeholders, analytics, ai, workflows, decision_intelligence, memory, copilot, agents
+from routers import opportunities, proposals, approvals, stakeholders, analytics, ai, workflows, decision_intelligence, memory, copilot, agents, strategy
 from telemetry import setup_logging, setup_telemetry
 from telemetry.context import set_correlation_id, new_correlation_id
 from telemetry.middleware import CorrelationIdMiddleware
@@ -64,6 +64,7 @@ app.include_router(decision_intelligence.router)
 app.include_router(memory.router)
 app.include_router(copilot.router)
 app.include_router(agents.router)
+app.include_router(strategy.router)
 
 
 @app.get("/api/health")

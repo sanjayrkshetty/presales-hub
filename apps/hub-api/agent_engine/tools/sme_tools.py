@@ -13,7 +13,7 @@ class ListSMEsTool(AgentTool):
     description = "List stakeholders tagged as SMEs from the database."
 
     async def execute(self, db: "Session", **_) -> ToolResult:
-        from models.opportunity import Stakeholder
+        from models.stakeholder import Stakeholder
         smes = db.query(Stakeholder).filter(Stakeholder.role == "sme").all()
         return ToolResult(
             tool_name=self.name,
@@ -32,7 +32,7 @@ class MatchSMEToRequirementsTool(AgentTool):
     description = "Score SME expertise coverage against provided requirement keywords."
 
     async def execute(self, requirements: list[str], db: "Session", **_) -> ToolResult:
-        from models.opportunity import Stakeholder
+        from models.stakeholder import Stakeholder
         smes = db.query(Stakeholder).filter(Stakeholder.role == "sme").all()
         req_set = {r.lower() for r in requirements}
         matches = []

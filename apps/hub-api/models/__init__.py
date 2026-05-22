@@ -7,6 +7,10 @@ from models.intelligence import (
     SmeRecommendationAudit, ApprovalAnomaly, WorkflowTimingMetric,
 )
 from models.memory import MemoryChunk
+from strategic_intelligence.models.strategy_models import (
+    ForecastSnapshot, CapacitySnapshot, EscalationPrediction,
+    EfficiencyScore, StrategyRecommendation,
+)
 
 __all__ = [
     "Stakeholder", "Client", "Opportunity",
@@ -15,4 +19,6 @@ __all__ = [
     "ProposalScore", "SlaPrediction", "BottleneckSnapshot",
     "SmeRecommendationAudit", "ApprovalAnomaly", "WorkflowTimingMetric",
     "MemoryChunk",
+    "ForecastSnapshot", "CapacitySnapshot", "EscalationPrediction",
+    "EfficiencyScore", "StrategyRecommendation",
 ]
