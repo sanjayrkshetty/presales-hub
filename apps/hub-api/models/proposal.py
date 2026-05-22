@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, JSON, Boolean
+from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, JSON, Boolean, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from db.database import Base
 
@@ -45,6 +45,10 @@ class Proposal(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    __table_args__ = (
+        Index("idx_proposals_stage", "stage"),
+    )
+
     opportunity = relationship("Opportunity", back_populates="proposal")
     assignments = relationship("Assignment", back_populates="proposal", cascade="all, delete-orphan")
     approvals = relationship("Approval", back_populates="proposal", cascade="all, delete-orphan")
@@ -87,6 +91,11 @@ class ActivityFeed(Base):
     is_alert: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+    __table_args__ = (
+        Index("idx_activity_proposal", "proposal_id"),
+        Index("idx_activity_created", "created_at"),
+    )
+
     proposal = relationship("Proposal", back_populates="activity")
 
 
@@ -102,3 +111,7 @@ class AuditLog(Base):
     to_state: Mapped[str | None] = mapped_column(Text)
     meta: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
     occurred_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_audit_entity", "entity_id"),
+    )

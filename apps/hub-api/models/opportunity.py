@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, date
 from decimal import Decimal
-from sqlalchemy import String, Integer, Text, DateTime, Date, Numeric, ForeignKey
+from sqlalchemy import String, Integer, Text, DateTime, Date, Numeric, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from db.database import Base
 
@@ -33,6 +33,10 @@ class Opportunity(Base):
     deadline: Mapped[date | None] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_opportunities_stage", "stage"),
+    )
 
     client = relationship("Client", back_populates="opportunities")
     owner = relationship("Stakeholder", foreign_keys=[owner_id])

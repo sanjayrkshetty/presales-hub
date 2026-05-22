@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Integer, Text, DateTime, ForeignKey
+from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from db.database import Base
 
@@ -19,6 +19,10 @@ class Approval(Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime)
     due_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_approvals_proposal", "proposal_id"),
+    )
 
     proposal = relationship("Proposal", back_populates="approvals")
     approver = relationship("Stakeholder", back_populates="approvals")
