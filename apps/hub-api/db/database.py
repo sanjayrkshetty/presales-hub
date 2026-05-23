@@ -38,5 +38,5 @@ def get_db():
 
 
 def init_db():
-    from models import opportunity, proposal, stakeholder, approval  # noqa: F401
+    from models import opportunity, proposal, stakeholder, approval, user  # noqa: F401
     Base.metadata.create_all(bind=engine)

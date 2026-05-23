@@ -4,6 +4,14 @@ const BASE = process.env.NEXT_PUBLIC_HUB_API_URL ?? "http://localhost:8003";
 
 type FetchOptions = RequestInit & { params?: Record<string, string | number | boolean | undefined> };
 
+// Module-level token provider — set once during app init so apiFetch can inject auth
+// without every call site needing to pass the token explicitly.
+let _getToken: (() => string | null) | null = null;
+
+export function initApiAuth(tokenGetter: () => string | null): void {
+  _getToken = tokenGetter;
+}
+
 export async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promise<T> {
   const { params, ...rest } = opts;
   let url = `${BASE}${path}`;
@@ -15,15 +23,24 @@ export async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promis
     const qs = q.toString();
     if (qs) url += `?${qs}`;
   }
-  const res = await fetch(url, {
-    headers: { "Content-Type": "application/json", ...rest.headers },
-    ...rest,
-  });
+
+  // Inject auth token if available and not already set by caller
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(rest.headers as Record<string, string>),
+  };
+  const callerSetAuth = "authorization" in headers || "Authorization" in headers;
+  if (!callerSetAuth && _getToken) {
+    const token = _getToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(url, { ...rest, headers });
+
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new ApiError(res.status, body || res.statusText, path);
   }
-  // TODO: Replace with Zod schema validation once schemas are defined (post-Phase 9)
   return res.json() as unknown as T;
 }
 

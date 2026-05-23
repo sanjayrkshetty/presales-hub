@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { QueryProvider } from "@/providers/QueryProvider";
+import { SessionProvider } from "@/providers/SessionProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageErrorBoundary } from "@/components/ui/ErrorBoundary";
 import "./globals.css";
@@ -28,11 +29,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body>
         <QueryProvider>
-          <PageErrorBoundary>
-            <AppShell>
-              {children}
-            </AppShell>
-          </PageErrorBoundary>
+          <SessionProvider>
+            <PageErrorBoundary>
+              <AppShell>
+                {children}
+              </AppShell>
+            </PageErrorBoundary>
+          </SessionProvider>
         </QueryProvider>
       </body>
     </html>

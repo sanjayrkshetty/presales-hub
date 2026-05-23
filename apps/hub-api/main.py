@@ -11,7 +11,9 @@ from sqlalchemy import select
 from db.database import init_db, SessionLocal, engine
 from events.broadcaster import broadcaster
 from models import ActivityFeed
-from routers import opportunities, proposals, approvals, stakeholders, analytics, ai, workflows, decision_intelligence, memory, copilot, agents, strategy, integration, platform
+from routers import opportunities, proposals, approvals, stakeholders, analytics, ai, workflows, decision_intelligence, memory, copilot, agents, strategy, integration, platform, auth as auth_router
+from core.config import settings
+from hub_platform.middleware.tenant_context import TenantContextMiddleware
 from telemetry import setup_logging, setup_telemetry
 from telemetry.context import set_correlation_id, new_correlation_id
 from telemetry.middleware import CorrelationIdMiddleware
@@ -42,17 +44,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Presales Hub API", version="1.0.0", lifespan=lifespan)
 
-# CorrelationIdMiddleware must be added BEFORE CORSMiddleware so that
-# the correlation ID is in context for all downstream middleware/routes.
+# Middleware order (last-added = outermost, first to run):
+#   CorrelationId → TenantContext → CORS
 app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(TenantContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+app.include_router(auth_router.router)
 app.include_router(opportunities.router)
 app.include_router(proposals.router)
 app.include_router(approvals.router)
