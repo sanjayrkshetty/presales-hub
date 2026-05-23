@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { wsUrl, ActivityItem } from "@/lib/api";
+import { wsUrl } from "@/lib/api/client";
+import type { ActivityItem } from "@/lib/types/api";
 
 const ACTION_ICONS: Record<string, string> = {
   stage_transition:  "→",

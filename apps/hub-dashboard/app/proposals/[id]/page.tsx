@@ -1,178 +1,138 @@
-import { notFound } from "next/navigation";
+"use client";
+import { useParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { opportunitiesApi } from "@/lib/api/opportunities";
+import { intelligenceApi } from "@/lib/api/intelligence";
+import { StageProgressRail } from "@/components/proposals/StageProgressRail";
+import { WorkflowStatusPanel } from "@/components/proposals/WorkflowStatusPanel";
+import { ProposalApprovalChain } from "@/components/proposals/ProposalApprovalChain";
+import { MetricCard } from "@/components/ui/MetricCard";
+import { ProgressRing } from "@/components/ui/ProgressRing";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Spinner } from "@/components/ui/Spinner";
+import { formatCurrency, formatHours, slaColor } from "@/lib/utils";
+import { ArrowLeft, Zap } from "lucide-react";
 import Link from "next/link";
-import { api } from "@/lib/api";
-import { ApprovalChain } from "@/components/ApprovalChain";
-import { SLATimer } from "@/components/SLATimer";
+import { useUIStore } from "@/lib/store/ui";
 
-export const revalidate = 30;
+export default function ProposalWarRoom() {
+  const { id } = useParams<{ id: string }>();
+  const { toggleCopilot, copilotOpen } = useUIStore();
 
-interface Props {
-  params: Promise<{ id: string }>;
-}
+  const { data: opp, isLoading } = useQuery({
+    queryKey: ["opportunities", id],
+    queryFn:  () => opportunitiesApi.get(id),
+    staleTime: 15_000,
+  });
 
-const STAGE_ORDER = [
-  "intake", "qualification", "sme_assignment", "drafting",
-  "technical_review", "security_review", "delivery_review",
-  "finance_review", "legal_review", "approval",
-  "submission", "client_followup",
-];
+  const { data: health } = useQuery({
+    queryKey: ["proposals", id, "health"],
+    queryFn:  () => intelligenceApi.proposalHealth(id),
+    staleTime: 30_000,
+    enabled: !!id,
+  });
 
-function healthColor(score: number): string {
-  if (score >= 80) return "#22c55e";
-  if (score >= 60) return "#f59e0b";
-  return "#ef4444";
-}
-
-export default async function ProposalDetailPage({ params }: Props) {
-  const { id } = await params;
-
-  let opp: Awaited<ReturnType<typeof api.opportunity>> | null = null;
-  try {
-    opp = await api.opportunity(id);
-  } catch {
-    notFound();
-  }
-
-  if (!opp) notFound();
-
-  const proposal = (opp as any).proposal;
-  const currentStageIdx = STAGE_ORDER.indexOf(opp.stage);
+  if (isLoading) return <div className="flex justify-center items-center h-full"><Spinner size="lg" /></div>;
+  if (!opp) return <div className="p-8 text-center text-xs text-text-muted font-sans">Opportunity not found</div>;
 
   return (
-    <div className="space-y-4 max-w-5xl">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-[10px]" style={{ color: "#64748b" }}>
-        <Link href="/" className="hover:text-accent transition-colors">Pipeline</Link>
-        <span>/</span>
-        <span style={{ color: "#94a3b8" }}>{opp.title}</span>
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-bg-secondary flex-shrink-0">
+        <Link href="/proposals" className="text-text-muted hover:text-text-primary transition-colors">
+          <ArrowLeft size={14} />
+        </Link>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-md font-sans font-semibold text-text-primary truncate">{opp.title}</h1>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-xs text-text-muted font-sans">{opp.client?.name}</span>
+            <span className="text-text-muted">·</span>
+            <StatusBadge status={opp.sla.status} label={`${formatHours(opp.sla.hours_remaining)} SLA`} />
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <MetricCard label="Value" value={formatCurrency(opp.deal_value_cr)} className="py-1.5 px-3 min-w-0" />
+          <ProgressRing score={opp.health_score} size={44} />
+          <button onClick={toggleCopilot}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-xs font-sans font-semibold transition-colors
+              ${copilotOpen ? "bg-purple/20 border-purple/40 text-purple" : "bg-bg-tertiary border-border text-text-secondary hover:text-text-primary"}`}>
+            <Zap size={12} /> Copilot
+          </button>
+        </div>
       </div>
 
-      {/* Header */}
-      <div className="panel p-4">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-[18px] font-bold" style={{ color: "#e2e8f0" }}>{opp.title}</h1>
-            <div className="text-[12px] mt-1" style={{ color: "#64748b" }}>
-              {opp.client?.name ?? "—"} · {opp.client?.sector ?? "—"} · {opp.rfp_type ?? "—"}
-            </div>
-          </div>
-          <div className="text-right space-y-1">
-            <div className="text-[22px] font-bold" style={{ color: "var(--accent)" }}>
-              ₹{opp.deal_value_cr?.toFixed(2)}cr
-            </div>
-            {proposal?.health_score !== null && proposal?.health_score !== undefined && (
-              <div className="text-[12px] font-semibold" style={{ color: healthColor(proposal.health_score) }}>
-                Health: {proposal.health_score}/100
+      {/* Stage rail */}
+      <div className="px-4 py-3 border-b border-border bg-bg-secondary flex-shrink-0">
+        <StageProgressRail currentStage={opp.stage} />
+      </div>
+
+      {/* Body */}
+      <div className="flex flex-1 min-h-0">
+        <div className="flex-1 overflow-auto p-4">
+          <div className="grid grid-cols-12 gap-4">
+            {/* Health breakdown */}
+            {health && (
+              <div className="col-span-12 panel p-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-2xs uppercase tracking-widest text-text-muted font-sans font-semibold">AI Health Assessment</span>
+                  <span className={`text-xs font-sans font-semibold ${health.overall_score >= 80 ? "text-success" : health.overall_score >= 50 ? "text-warn" : "text-danger"}`}>
+                    {health.readiness_classification}
+                  </span>
+                  {health.risk_factors.length > 0 && (
+                    <span className="text-xs text-text-muted font-sans">
+                      Risks: {health.risk_factors.join(", ")}
+                    </span>
+                  )}
+                  {health.explanation && (
+                    <p className="w-full text-xs text-text-secondary font-sans mt-1">{health.explanation}</p>
+                  )}
+                </div>
               </div>
             )}
+
+            {/* Left column */}
+            <div className="col-span-12 lg:col-span-5 flex flex-col gap-4">
+              <WorkflowStatusPanel proposalId={id} />
+              <ProposalApprovalChain proposalId={id} />
+            </div>
+
+            {/* Right column */}
+            <div className="col-span-12 lg:col-span-7 flex flex-col gap-4">
+              <div className="panel">
+                <div className="panel-header">Deal Details</div>
+                <div className="p-3 grid grid-cols-2 gap-x-6 gap-y-2">
+                  {[
+                    ["RFP Type",   opp.rfp_type],
+                    ["Stage",      opp.stage?.replace(/_/g, " ")],
+                    ["Win Prob",   `${(opp.win_probability * 100).toFixed(0)}%`],
+                    ["Deadline",   new Date(opp.deadline).toLocaleDateString()],
+                    ["Client",     opp.client?.name],
+                    ["Sector",     opp.client?.sector],
+                  ].map(([k, v]) => (
+                    <div key={k}>
+                      <p className="text-2xs text-text-muted font-sans uppercase tracking-widest">{k}</p>
+                      <p className="text-xs font-mono text-text-primary mt-0.5">{v}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Stage progress */}
-        <div className="mt-4 flex gap-1 overflow-x-auto pb-1">
-          {STAGE_ORDER.map((s, i) => (
-            <div key={s}
-              className="flex flex-col items-center gap-1 min-w-0 shrink-0"
-              style={{ opacity: i > currentStageIdx ? 0.3 : 1 }}>
-              <div className="w-2 h-2 rounded-full"
-                style={{
-                  background: i < currentStageIdx ? "var(--accent)" :
-                              i === currentStageIdx ? "#e2e8f0" : "#1e2128",
-                  border: i === currentStageIdx ? "2px solid var(--accent)" : "none",
-                }} />
-              <span className="text-[9px] whitespace-nowrap" style={{ color: i === currentStageIdx ? "var(--accent)" : "#475569" }}>
-                {s.replace(/_/g, " ")}
-              </span>
+        {/* Copilot slide-in panel */}
+        {copilotOpen && (
+          <div className="w-80 border-l border-border bg-bg-secondary flex flex-col animate-slide_in flex-shrink-0">
+            <div className="panel-header">
+              <Zap size={11} className="text-purple" />
+              <span>AI Copilot</span>
             </div>
-          ))}
-        </div>
-
-        {opp.sla.hours_allowed && (
-          <div className="mt-3">
-            <SLATimer sla={opp.sla} />
+            <div className="p-3 text-xs text-text-muted font-sans">
+              Copilot panel — visit <Link href="/copilot" className="text-purple hover:text-purple/80">/copilot</Link> for full workspace
+            </div>
           </div>
         )}
       </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        {/* Deal info */}
-        <div className="panel">
-          <div className="panel-header">Deal Information</div>
-          <div className="p-4 space-y-2">
-            {[
-              ["Client",         opp.client?.name ?? "—"],
-              ["Sector",         opp.client?.sector ?? "—"],
-              ["Tier",           opp.client?.tier ?? "—"],
-              ["RFP Type",       opp.rfp_type ?? "—"],
-              ["Win Probability",`${opp.win_probability}%`],
-              ["Deadline",       opp.deadline ? new Date(opp.deadline).toLocaleDateString("en-IN") : "—"],
-              ["Created",        new Date(opp.created_at).toLocaleDateString("en-IN")],
-            ].map(([k, v]) => (
-              <div key={k} className="flex justify-between items-center py-1 border-b last:border-0"
-                style={{ borderColor: "var(--border)" }}>
-                <span className="text-[10px]" style={{ color: "#64748b" }}>{k}</span>
-                <span className="text-[11px] font-medium" style={{ color: "#e2e8f0" }}>{v}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Approval chain */}
-        <div className="panel">
-          <div className="panel-header">Approval Chain</div>
-          <div className="p-4">
-            <ApprovalChain approvals={proposal?.approvals ?? []} />
-          </div>
-        </div>
-      </div>
-
-      {/* Assignments */}
-      {proposal?.assignments?.length > 0 && (
-        <div className="panel">
-          <div className="panel-header">Assignments ({proposal.assignments.length})</div>
-          <div className="divide-y" style={{ borderColor: "var(--border)" }}>
-            {proposal.assignments.map((a: any) => (
-              <div key={a.id} className="p-3 flex justify-between items-center">
-                <div>
-                  <span className="text-[11px] font-medium" style={{ color: "#e2e8f0" }}>{a.role ?? "—"}</span>
-                  <span className="ml-2 text-[10px]" style={{ color: "#64748b" }}>{a.bu ?? ""}</span>
-                </div>
-                <span className="badge text-[9px]"
-                  style={{
-                    background: a.status === "completed" ? "#22c55e22" : "#00d4aa15",
-                    color: a.status === "completed" ? "#22c55e" : "#00d4aa",
-                    border: `1px solid ${a.status === "completed" ? "#22c55e44" : "#00d4aa33"}`,
-                  }}>
-                  {a.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Recent activity */}
-      {proposal?.recent_activity?.length > 0 && (
-        <div className="panel">
-          <div className="panel-header">Recent Activity</div>
-          <div className="divide-y" style={{ borderColor: "var(--border)" }}>
-            {proposal.recent_activity.map((act: any) => (
-              <div key={act.id} className="p-3 flex gap-3 items-start"
-                style={{ background: act.is_alert ? "rgba(239,68,68,0.04)" : undefined }}>
-                <span className="text-[10px] font-mono" style={{ color: "#475569" }}>
-                  {new Date(act.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-                </span>
-                <div>
-                  <span className="text-[11px]" style={{ color: act.is_alert ? "#fca5a5" : "#cbd5e1" }}>
-                    {act.description}
-                  </span>
-                  <span className="ml-2 text-[10px]" style={{ color: "#475569" }}>· {act.actor_name}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

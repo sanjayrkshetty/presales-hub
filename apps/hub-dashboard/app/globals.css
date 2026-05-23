@@ -1,89 +1,160 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --bg-primary:   #0a0b0d;
-  --bg-secondary: #111318;
-  --bg-tertiary:  #161a21;
-  --border:       #1e2128;
+  --bg-primary:   #08090b;
+  --bg-secondary: #0f1117;
+  --bg-tertiary:  #151820;
+  --bg-elevated:  #1a1e2a;
+  --border:       #1e2330;
+  --border-subtle:#252a38;
   --accent:       #00d4aa;
+  --accent-dim:   #00d4aa18;
+  --accent-muted: #00d4aa66;
+  --blue:         #3b82f6;
+  --purple:       #8b5cf6;
   --warn:         #f59e0b;
   --danger:       #ef4444;
   --success:      #22c55e;
+  --text-primary: #e2e8f0;
+  --text-secondary:#94a3b8;
+  --text-muted:   #64748b;
 }
 
-* {
-  box-sizing: border-box;
-}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { height: 100%; }
 
 body {
   background-color: var(--bg-primary);
-  color: #e2e8f0;
-  font-family: 'JetBrains Mono', Consolas, monospace;
+  color: var(--text-primary);
+  font-family: var(--font-inter, system-ui, sans-serif);
   font-size: 13px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  height: 100%;
 }
 
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
-}
-::-webkit-scrollbar-thumb {
-  background: #2d3340;
-  border-radius: 2px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
+/* Monospace values always use mono font */
+.font-mono, code, pre, [data-mono] {
+  font-family: var(--font-mono, 'JetBrains Mono', Consolas, monospace);
 }
 
+/* ── Scrollbars ─────────────────────────────────── */
+::-webkit-scrollbar        { width: 4px; height: 4px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: #2a3040; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ── Base component patterns ────────────────────── */
 .panel {
-  background: var(--bg-secondary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.panel-sm {
+  background: var(--bg-tertiary);
   border: 1px solid var(--border);
   border-radius: 4px;
 }
 
 .panel-header {
-  padding: 8px 12px;
+  padding: 7px 12px;
   border-bottom: 1px solid var(--border);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #64748b;
   display: flex;
   align-items: center;
   gap: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-family: var(--font-inter, system-ui, sans-serif);
 }
 
-.sla-ok      { color: #22c55e; }
-.sla-warning { color: #f59e0b; }
-.sla-breached { color: #ef4444; }
+.panel-body { padding: 12px; }
 
+/* ── Table patterns ─────────────────────────────── */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th {
+  padding: 6px 12px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-inter, system-ui, sans-serif);
+}
+.data-table td {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.data-table tr:hover td { background: rgba(255,255,255,0.02); }
+.data-table tr:last-child td { border-bottom: none; }
+
+/* ── Badge variants ─────────────────────────────── */
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 1px 6px;
+  padding: 1px 7px;
   border-radius: 3px;
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
+  font-family: var(--font-inter, system-ui, sans-serif);
 }
 
-.health-bar {
-  height: 3px;
-  background: #1e2128;
-  border-radius: 2px;
-  overflow: hidden;
+.badge-accent   { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-muted); }
+.badge-danger   { background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+.badge-warn     { background: rgba(245,158,11,0.1); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+.badge-success  { background: rgba(34,197,94,0.1); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); }
+.badge-blue     { background: rgba(59,130,246,0.1); color: #3b82f6; border: 1px solid rgba(59,130,246,0.3); }
+.badge-purple   { background: rgba(139,92,246,0.1); color: #8b5cf6; border: 1px solid rgba(139,92,246,0.3); }
+.badge-muted    { background: rgba(100,116,139,0.1); color: #64748b; border: 1px solid rgba(100,116,139,0.2); }
+
+/* ── SLA colors ─────────────────────────────────── */
+.sla-ok       { color: #22c55e; }
+.sla-warning  { color: #f59e0b; }
+.sla-breached { color: #ef4444; }
+
+/* ── Health bar ─────────────────────────────────── */
+.health-bar      { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.health-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+
+/* ── Focus ring ─────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
-.health-bar-fill {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 0.3s ease;
+
+/* ── Realtime flash ─────────────────────────────── */
+@keyframes row_flash {
+  0%   { background: rgba(0,212,170,0.12); }
+  100% { background: transparent; }
+}
+.row-flash { animation: row_flash 1.2s ease-out; }
+
+/* ── Sidebar transition ─────────────────────────── */
+.sidebar-enter { animation: slide_in 0.2s ease-out; }
+
+/* ── cmdk overrides ─────────────────────────────── */
+[cmdk-root] {
+  font-family: var(--font-inter, system-ui, sans-serif) !important;
+}
+
+/* ── React Flow dark theme ──────────────────────── */
+.react-flow__background { background: var(--bg-secondary) !important; }
+.react-flow__edge-path  { stroke: var(--border) !important; }
+.react-flow__controls button {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
 }
