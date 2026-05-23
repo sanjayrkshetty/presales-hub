@@ -50,6 +50,7 @@ def reset_db():
     import models.intelligence  # noqa: F401 — intelligence tables
     import models.memory        # noqa: F401 — memory_chunks table
     import strategic_intelligence.models.strategy_models  # noqa: F401 — strategy tables
+    import models.integration  # noqa: F401 — integration fabric tables
     Base.metadata.drop_all(bind=TEST_ENGINE)
     Base.metadata.create_all(bind=TEST_ENGINE)
     yield

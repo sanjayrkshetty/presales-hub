@@ -11,6 +11,10 @@ from strategic_intelligence.models.strategy_models import (
     ForecastSnapshot, CapacitySnapshot, EscalationPrediction,
     EfficiencyScore, StrategyRecommendation,
 )
+from models.integration import (
+    IntegrationConnector, WebhookSubscription, WebhookDelivery,
+    SyncRecord, RetryJob, APIKey, IntegrationMetric,
+)
 
 __all__ = [
     "Stakeholder", "Client", "Opportunity",
@@ -21,4 +25,6 @@ __all__ = [
     "MemoryChunk",
     "ForecastSnapshot", "CapacitySnapshot", "EscalationPrediction",
     "EfficiencyScore", "StrategyRecommendation",
+    "IntegrationConnector", "WebhookSubscription", "WebhookDelivery",
+    "SyncRecord", "RetryJob", "APIKey", "IntegrationMetric",
 ]
