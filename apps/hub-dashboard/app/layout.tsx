@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { AppShell } from "@/components/layout/AppShell";
+import { PageErrorBoundary } from "@/components/ui/ErrorBoundary";
 import "./globals.css";
 
 const inter = Inter({
@@ -27,9 +28,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body>
         <QueryProvider>
-          <AppShell>
-            {children}
-          </AppShell>
+          <PageErrorBoundary>
+            <AppShell>
+              {children}
+            </AppShell>
+          </PageErrorBoundary>
         </QueryProvider>
       </body>
     </html>

@@ -1,3 +1,5 @@
+import { ApiError } from "../errors";
+
 const BASE = process.env.NEXT_PUBLIC_HUB_API_URL ?? "http://localhost:8003";
 
 type FetchOptions = RequestInit & { params?: Record<string, string | number | boolean | undefined> };
@@ -19,9 +21,10 @@ export async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promis
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`API ${res.status}: ${body || res.statusText}`);
+    throw new ApiError(res.status, body || res.statusText, path);
   }
-  return res.json() as Promise<T>;
+  // TODO: Replace with Zod schema validation once schemas are defined (post-Phase 9)
+  return res.json() as unknown as T;
 }
 
 export function wsUrl(path: string): string {
