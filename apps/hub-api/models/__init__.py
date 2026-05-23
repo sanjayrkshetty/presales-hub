@@ -15,6 +15,10 @@ from models.integration import (
     IntegrationConnector, WebhookSubscription, WebhookDelivery,
     SyncRecord, RetryJob, APIKey, IntegrationMetric,
 )
+from models.tenant import (
+    Tenant, TenantQuota, FeatureFlag, UsageRecord,
+    BillingEvent, TenantAuditLog, TenantRole, TenantRoleAssignment,
+)
 
 __all__ = [
     "Stakeholder", "Client", "Opportunity",
@@ -27,4 +31,6 @@ __all__ = [
     "EfficiencyScore", "StrategyRecommendation",
     "IntegrationConnector", "WebhookSubscription", "WebhookDelivery",
     "SyncRecord", "RetryJob", "APIKey", "IntegrationMetric",
+    "Tenant", "TenantQuota", "FeatureFlag", "UsageRecord",
+    "BillingEvent", "TenantAuditLog", "TenantRole", "TenantRoleAssignment",
 ]
