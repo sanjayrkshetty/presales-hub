@@ -8,7 +8,8 @@ export default defineConfig({
     environment:  "happy-dom",
     globals:      true,
     setupFiles:   ["./tests/setup.ts"],
-    include:      ["tests/**/*.{test,spec}.{ts,tsx}"],
+    include:      ["tests/unit/**/*.{test,spec}.{ts,tsx}"],
+    exclude:      ["tests/e2e/**"],
     coverage: {
       provider:   "v8",
       reporter:   ["text", "lcov"],

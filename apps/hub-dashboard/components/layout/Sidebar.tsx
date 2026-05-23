@@ -6,7 +6,7 @@ import { useUIStore } from "@/lib/store/ui";
 import {
   LayoutDashboard, FileText, CheckSquare, Clock, Bot, GitBranch,
   Cpu, TrendingUp, Plug, Settings, BarChart3, Users, ChevronLeft, ChevronRight,
-  Zap,
+  Zap, Activity,
 } from "lucide-react";
 
 const NAV = [
@@ -38,8 +38,9 @@ const NAV = [
   {
     group: "Platform",
     items: [
-      { href: "/integrations", icon: Plug,     label: "Integrations" },
-      { href: "/platform",     icon: Settings, label: "Platform"     },
+      { href: "/integrations", icon: Plug,     label: "Integrations"  },
+      { href: "/platform",     icon: Settings, label: "Platform"      },
+      { href: "/health",       icon: Activity, label: "System Health" },
     ],
   },
 ];

@@ -1,10 +1,12 @@
 "use client";
+
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { Bell, Search, ExternalLink } from "lucide-react";
 import { useUIStore } from "@/lib/store/ui";
 import { useNotificationStore } from "@/lib/store/notifications";
 import { RealtimeIndicator } from "@/components/realtime/RealtimeIndicator";
-import { cn } from "@/lib/utils";
+import { NotificationPanel } from "./NotificationPanel";
 
 const BREADCRUMBS: Record<string, string> = {
   "/ops":          "Operations Console",
@@ -19,19 +21,22 @@ const BREADCRUMBS: Record<string, string> = {
   "/stakeholders": "Stakeholders",
   "/integrations": "Integration Health",
   "/platform":     "Platform Admin",
+  "/health":       "System Health",
 };
 
 interface Props { apiUrl?: string; }
 
 export function TopBar({ apiUrl }: Props) {
-  const pathname    = usePathname();
+  const pathname                  = usePathname();
   const { setCommandPaletteOpen } = useUIStore();
-  const { unreadCount, markAllRead, notifications } = useNotificationStore();
+  const { unreadCount }           = useNotificationStore();
+  const [panelOpen, setPanelOpen] = useState(false);
 
-  const crumb = BREADCRUMBS[pathname] ?? pathname.split("/").filter(Boolean).join(" / ");
+  const crumb = BREADCRUMBS[pathname]
+    ?? pathname.split("/").filter(Boolean).join(" / ");
 
   return (
-    <header className="h-11 flex items-center px-4 gap-3 border-b border-border bg-bg-secondary flex-shrink-0">
+    <header className="h-11 flex items-center px-4 gap-3 border-b border-border bg-bg-secondary flex-shrink-0 relative">
       {/* Breadcrumb */}
       <span className="text-xs font-sans font-medium text-text-secondary truncate flex-1">
         {crumb}
@@ -49,10 +54,10 @@ export function TopBar({ apiUrl }: Props) {
 
       <RealtimeIndicator />
 
-      {/* Notifications */}
+      {/* Notification bell + panel */}
       <div className="relative">
         <button
-          onClick={markAllRead}
+          onClick={() => setPanelOpen((o) => !o)}
           className="relative p-1.5 rounded hover:bg-white/4 transition-colors text-text-muted hover:text-text-primary"
           title="Notifications"
         >
@@ -63,11 +68,13 @@ export function TopBar({ apiUrl }: Props) {
             </span>
           )}
         </button>
+        <NotificationPanel open={panelOpen} onClose={() => setPanelOpen(false)} />
       </div>
 
       {/* API link */}
       {apiUrl && (
-        <a href={apiUrl} target="_blank" rel="noopener" className="text-text-muted hover:text-text-primary transition-colors" title="API Docs">
+        <a href={apiUrl} target="_blank" rel="noopener"
+           className="text-text-muted hover:text-text-primary transition-colors" title="API Docs">
           <ExternalLink size={12} />
         </a>
       )}
