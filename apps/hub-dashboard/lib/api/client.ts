@@ -44,8 +44,9 @@ export async function apiFetch<T>(path: string, opts: FetchOptions = {}): Promis
   return res.json() as unknown as T;
 }
 
-export function wsUrl(path: string): string {
+export function wsUrl(path: string, token?: string | null): string {
   const base = (process.env.NEXT_PUBLIC_HUB_API_URL ?? "http://localhost:8003")
     .replace(/^http/, "ws");
-  return `${base}${path}`;
+  const url = `${base}${path}`;
+  return token ? `${url}?token=${encodeURIComponent(token)}` : url;
 }

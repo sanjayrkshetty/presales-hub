@@ -7,6 +7,11 @@ from telemetry.context import (
 
 SERVICE_NAME = os.getenv("SERVICE_NAME", "hub-api")
 
+_SENSITIVE_KEYS = frozenset({
+    "password", "token", "secret", "api_key", "apikey",
+    "authorization", "x_admin_key", "access_token", "refresh_token",
+})
+
 
 class ContextFilter(logging.Filter):
     """Injects request-scoped context vars into every log record."""
@@ -20,6 +25,20 @@ class ContextFilter(logging.Filter):
         return True
 
 
+class SensitiveFilter(logging.Filter):
+    """Redacts sensitive field values from structured log extras.
+
+    Applies to the `extra` dict passed to logger calls. Does not scan
+    the message string — avoid logging raw request bodies.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        for attr in list(vars(record)):
+            if any(s in attr.lower() for s in _SENSITIVE_KEYS):
+                setattr(record, attr, "[REDACTED]")
+        return True
+
+
 def setup_logging(level: str = "INFO") -> None:
     """
     Configure structured JSON logging for the entire process.
@@ -28,6 +47,7 @@ def setup_logging(level: str = "INFO") -> None:
     formatter that still injects the context fields.
     """
     context_filter = ContextFilter()
+    sensitive_filter = SensitiveFilter()
 
     try:
         from pythonjsonlogger import jsonlogger  # type: ignore[import]
@@ -39,7 +59,6 @@ def setup_logging(level: str = "INFO") -> None:
             rename_fields={"asctime": "timestamp", "levelname": "level"},
         )
     except ImportError:
-        # Graceful fallback: structured fields still injected; just not JSON
         formatter = logging.Formatter(
             fmt="%(asctime)s [%(levelname)s] %(name)s | cid=%(correlation_id)s "
                 "pid=%(proposal_id)s | %(message)s",
@@ -49,6 +68,7 @@ def setup_logging(level: str = "INFO") -> None:
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
     handler.addFilter(context_filter)
+    handler.addFilter(sensitive_filter)
 
     root = logging.getLogger()
     root.handlers.clear()

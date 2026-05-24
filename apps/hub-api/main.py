@@ -15,6 +15,7 @@ from models import ActivityFeed
 from routers import opportunities, proposals, approvals, stakeholders, analytics, ai, workflows, decision_intelligence, memory, copilot, agents, strategy, integration, platform, auth as auth_router, ai_governance, admin as admin_router
 from core.config import settings
 from hub_platform.middleware.tenant_context import TenantContextMiddleware
+from middleware.audit import AuditLogMiddleware
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler, RateLimitExceeded
 from middleware.request_size import RequestSizeLimitMiddleware
 from middleware.security import SecurityHeadersMiddleware
@@ -89,8 +90,9 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # Middleware order (last-added = outermost, first to run):
-#   CorrelationId → TenantContext → Timeout → RequestSize → SecurityHeaders → CORS
+#   CorrelationId → Audit → TenantContext → Timeout → RequestSize → SecurityHeaders → CORS
 app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(AuditLogMiddleware)
 app.add_middleware(TenantContextMiddleware)
 app.add_middleware(RequestTimeoutMiddleware)
 app.add_middleware(RequestSizeLimitMiddleware)
@@ -99,8 +101,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization", "Content-Type", "X-Tenant-ID",
+        "X-Admin-Key", "X-Correlation-ID",
+    ],
 )
 
 app.include_router(auth_router.router)
@@ -192,8 +197,33 @@ def metrics():
     return Response(content=body, media_type=content_type)
 
 
+async def _ws_authenticate(ws: WebSocket) -> bool:
+    """Validate JWT from ?token= query param before accepting the WebSocket upgrade.
+
+    Returns True if authentication passes, False if it should be rejected.
+    The connection must NOT be accepted before calling this — rejection happens
+    by closing without accept() when the token is missing or invalid.
+    """
+    from core.security import decode_access_token
+    from jose import JWTError
+    token = ws.query_params.get("token", "")
+    if not token:
+        await ws.close(code=4001)  # 4001 = Unauthorized (custom app code)
+        logger.warning("WS upgrade rejected — missing token from %s", ws.client)
+        return False
+    try:
+        decode_access_token(token)
+        return True
+    except JWTError as exc:
+        await ws.close(code=4003)  # 4003 = Forbidden
+        logger.warning("WS upgrade rejected — invalid token: %s from %s", exc, ws.client)
+        return False
+
+
 @app.websocket("/ws/activity")
 async def ws_activity(ws: WebSocket):
+    if not await _ws_authenticate(ws):
+        return
     await ws.accept()
 
     # WebSocket sessions have no HTTP middleware — assign their own correlation ID.
@@ -247,6 +277,8 @@ async def ws_activity(ws: WebSocket):
 @app.websocket("/ws/sla-alerts")
 async def ws_sla(ws: WebSocket):
     """SLA alert stream. Clients filter by event_type='sla.breach'."""
+    if not await _ws_authenticate(ws):
+        return
     await ws.accept()
     cid = new_correlation_id()
     set_correlation_id(cid)
@@ -266,6 +298,8 @@ async def ws_sla(ws: WebSocket):
 @app.websocket("/ws/events")
 async def ws_events(ws: WebSocket):
     """Unified domain event stream — all event types."""
+    if not await _ws_authenticate(ws):
+        return
     await ws.accept()
     cid = new_correlation_id()
     set_correlation_id(cid)

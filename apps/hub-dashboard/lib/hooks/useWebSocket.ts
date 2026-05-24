@@ -2,6 +2,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useRealtimeStore } from "../store/realtime";
 import { useNotificationStore } from "../store/notifications";
+import { useAuthStore } from "../auth/session";
 import { wsUrl } from "../api/client";
 import { parseDomainEvent } from "../types/events";
 import type { DomainEvent, SlaBreachEvent, AnomalyDetectedEvent } from "../types/events";
@@ -16,14 +17,17 @@ const BATCH_SIZE  = 20;
 export function useWebSocketManager() {
   const { setChannelState, pushEvent } = useRealtimeStore();
   const { addNotification }            = useNotificationStore();
+  const accessToken                    = useAuthStore((s) => s.accessToken);
 
   // Stable function refs — allows connect() to be called without stale closures
   const pushRef      = useRef(pushEvent);
   const notifyRef    = useRef(addNotification);
   const channelRef   = useRef(setChannelState);
+  const tokenRef     = useRef(accessToken);
   useEffect(() => { pushRef.current    = pushEvent;       }, [pushEvent]);
   useEffect(() => { notifyRef.current  = addNotification; }, [addNotification]);
   useEffect(() => { channelRef.current = setChannelState; }, [setChannelState]);
+  useEffect(() => { tokenRef.current   = accessToken;     }, [accessToken]);
 
   const sockets  = useRef<Map<Channel, WebSocket>>(new Map());
   const retries  = useRef<Map<Channel, number>>(new Map());
@@ -66,7 +70,7 @@ export function useWebSocketManager() {
     if (!mounted.current) return;
 
     channelRef.current(path, "connecting");
-    const ws = new WebSocket(wsUrl(path));
+    const ws = new WebSocket(wsUrl(path, tokenRef.current));
     sockets.current.set(path, ws);
 
     ws.onopen = () => {
