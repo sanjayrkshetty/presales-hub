@@ -1,0 +1,66 @@
+{
+  "family": "presales-hub-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/presalesHubTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "hub-api",
+      "image": "ghcr.io/YOUR_ORG/presales-hub-api:latest",
+      "portMappings": [
+        { "containerPort": 8003, "protocol": "tcp" }
+      ],
+      "environment": [
+        { "name": "ENVIRONMENT", "value": "production" },
+        { "name": "TEMPORAL_HOST", "value": "TEMPORAL_HOST_HERE:7233" }
+      ],
+      "secrets": [
+        { "name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:presales-hub/DATABASE_URL" },
+        { "name": "REDIS_URL",    "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:presales-hub/REDIS_URL" },
+        { "name": "SECRET_KEY",   "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:presales-hub/SECRET_KEY" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8003/api/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/presales-hub-api",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    },
+    {
+      "name": "temporal-worker",
+      "image": "ghcr.io/YOUR_ORG/presales-hub-worker:latest",
+      "portMappings": [
+        { "containerPort": 8004, "protocol": "tcp" }
+      ],
+      "environment": [
+        { "name": "ENVIRONMENT",        "value": "production" },
+        { "name": "TEMPORAL_HOST",      "value": "TEMPORAL_HOST_HERE:7233" },
+        { "name": "WORKER_HEALTH_PORT", "value": "8004" }
+      ],
+      "secrets": [
+        { "name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:presales-hub/DATABASE_URL" },
+        { "name": "REDIS_URL",    "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:presales-hub/REDIS_URL" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/presales-hub-worker",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

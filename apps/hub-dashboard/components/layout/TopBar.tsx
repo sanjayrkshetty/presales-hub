@@ -7,6 +7,7 @@ import { useUIStore } from "@/lib/store/ui";
 import { useNotificationStore } from "@/lib/store/notifications";
 import { RealtimeIndicator } from "@/components/realtime/RealtimeIndicator";
 import { NotificationPanel } from "./NotificationPanel";
+import { ProfileMenu } from "./ProfileMenu";
 
 const BREADCRUMBS: Record<string, string> = {
   "/ops":          "Operations Console",
@@ -18,10 +19,14 @@ const BREADCRUMBS: Record<string, string> = {
   "/intelligence": "Intelligence Cockpit",
   "/workflows":    "Workflow Timelines",
   "/analytics":    "Analytics",
+  "/ai-governance":"AI Governance",
+  "/settings":     "Settings",
   "/stakeholders": "Stakeholders",
   "/integrations": "Integration Health",
   "/platform":     "Platform Admin",
   "/health":       "System Health",
+  "/system":       "System Health Center",
+  "/executive":    "Executive Wallboard",
 };
 
 interface Props { apiUrl?: string; }
@@ -78,6 +83,8 @@ export function TopBar({ apiUrl }: Props) {
           <ExternalLink size={12} />
         </a>
       )}
+
+      <ProfileMenu />
     </header>
   );
 }

@@ -5,9 +5,12 @@ import { useSearchParams } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { CommandPalette } from "./CommandPalette";
+import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
 import { WebSocketProvider } from "@/components/realtime/WebSocketProvider";
 import { ToastStack } from "@/components/ui/ToastStack";
+import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { DemoModeProvider } from "@/providers/DemoModeProvider";
+import { DemoResetButton } from "@/components/ui/DemoResetButton";
 
 function DemoBanner() {
   const params  = useSearchParams();
@@ -34,6 +37,7 @@ export function AppShell({ children }: Props) {
         <div className="flex flex-col h-screen w-screen overflow-hidden bg-bg-primary">
           <WebSocketProvider />
           <DemoBanner />
+          <OfflineBanner />
           <div className="flex flex-1 min-h-0 overflow-hidden">
             <Sidebar />
             <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
@@ -44,7 +48,11 @@ export function AppShell({ children }: Props) {
             </div>
           </div>
           <CommandPalette />
+          <KeyboardShortcutsOverlay />
           <ToastStack />
+          <div className="fixed bottom-3 left-14 z-40">
+            <DemoResetButton />
+          </div>
         </div>
       </DemoModeProvider>
     </Suspense>

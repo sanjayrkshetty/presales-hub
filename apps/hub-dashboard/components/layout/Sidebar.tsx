@@ -6,7 +6,7 @@ import { useUIStore } from "@/lib/store/ui";
 import {
   LayoutDashboard, FileText, CheckSquare, Clock, Bot, GitBranch,
   Cpu, TrendingUp, Plug, Settings, BarChart3, Users, ChevronLeft, ChevronRight,
-  Zap, Activity,
+  Zap, Activity, Brain, Monitor, Server,
 } from "lucide-react";
 
 const NAV = [
@@ -31,16 +31,24 @@ const NAV = [
   {
     group: "Data",
     items: [
-      { href: "/analytics",   icon: BarChart3, label: "Analytics"   },
-      { href: "/stakeholders",icon: Users,      label: "Stakeholders" },
+      { href: "/analytics",      icon: BarChart3, label: "Analytics"     },
+      { href: "/ai-governance",  icon: Brain,     label: "AI Governance" },
+      { href: "/stakeholders",   icon: Users,     label: "Stakeholders"  },
     ],
   },
   {
     group: "Platform",
     items: [
-      { href: "/integrations", icon: Plug,     label: "Integrations"  },
-      { href: "/platform",     icon: Settings, label: "Platform"      },
-      { href: "/health",       icon: Activity, label: "System Health" },
+      { href: "/integrations", icon: Plug,         label: "Integrations"    },
+      { href: "/platform",     icon: Settings,      label: "Platform"        },
+      { href: "/system",       icon: Server,        label: "System Health"   },
+      { href: "/health",       icon: Activity,      label: "Health (legacy)" },
+    ],
+  },
+  {
+    group: "Demo",
+    items: [
+      { href: "/executive",    icon: Monitor,  label: "Executive View"  },
     ],
   },
 ];

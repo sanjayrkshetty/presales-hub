@@ -1,0 +1,31 @@
+name: CD — Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Image tag to deploy (e.g. sha-abc1234)
+        required: true
+
+jobs:
+  deploy-production:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    environment: production  # requires manual approval gate in GitHub
+    steps:
+      - uses: actions/checkout@v4
+      - name: SSH deploy
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd /opt/presales-hub
+            export IMAGE_TAG=${{ github.event.inputs.image_tag }}
+            docker compose -f deployment/docker/docker-compose.prod.yml pull
+            docker compose -f deployment/docker/docker-compose.prod.yml up -d --remove-orphans
+            docker compose -f deployment/docker/docker-compose.prod.yml exec hub-api alembic upgrade head
+      - name: Notify
+        if: always()
+        run: echo "Production deploy ${{ job.status }} — tag ${{ github.event.inputs.image_tag }}"

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: presales-hub-config
+  namespace: presales-hub
+data:
+  ENVIRONMENT: "production"
+  TEMPORAL_HOST: "temporal:7233"
+  OTLP_ENDPOINT: "http://jaeger:4318"
+  WORKER_HEALTH_PORT: "8004"
+  ALLOWED_ORIGINS: '["https://yourdomain.com"]'

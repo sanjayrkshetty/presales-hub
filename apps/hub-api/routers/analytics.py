@@ -1,6 +1,9 @@
+import csv
+import io
 from datetime import datetime, timedelta
 from collections import defaultdict
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
@@ -127,3 +130,32 @@ def sme_load(db: Session = Depends(get_db)):
         })
 
     return sorted(result, key=lambda x: x["utilization_pct"], reverse=True)
+
+
+@router.get("/export/pipeline.csv")
+def export_pipeline_csv(db: Session = Depends(get_db)):
+    """Download active pipeline as CSV for exec reporting."""
+    opps = db.scalars(select(Opportunity)).all()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Title", "Client", "Stage", "Deal Value (Cr)", "Created", "Days in Pipeline"])
+
+    for o in opps:
+        days = (datetime.utcnow() - o.created_at).days if o.created_at else ""
+        writer.writerow([
+            o.title,
+            getattr(o, "client_name", ""),
+            o.stage,
+            o.deal_value_cr,
+            o.created_at.date().isoformat() if o.created_at else "",
+            days,
+        ])
+
+    buf.seek(0)
+    filename = f"presales_pipeline_{datetime.utcnow().strftime('%Y%m%d')}.csv"
+    return StreamingResponse(
+        iter([buf.read()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )

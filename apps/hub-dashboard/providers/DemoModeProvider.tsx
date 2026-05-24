@@ -10,12 +10,13 @@ import { useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useRealtimeStore } from "@/lib/store/realtime";
 import { useNotificationStore } from "@/lib/store/notifications";
+import { useDemoStore } from "@/lib/store/demo";
 import type { ActivityEvent } from "@/lib/types/events";
 
 const ACTORS = ["Arjun Kumar","Sneha Sharma","Rajiv Nair","Priya Singh","Vikram Mehta","System Monitor","AI Copilot"];
 const PROPOSALS = ["P-HDFC-SOC","P-Infosys-ZT","P-Apollo-SIEM","P-DRDO-AI","P-Titan-Cloud","P-Flipkart-Comp"];
 const ACTIONS: Array<ActivityEvent["action_type"]> = [
-  "stage_transition","sme_assigned","approval_decision","created","created",
+  "stage_transition","sme_assigned","approval_decision","created","created","sla_breach",
 ];
 const DESCS = [
   "Stage advanced: technical review completed",
@@ -66,16 +67,41 @@ function makeEvent(isAlert: boolean): ActivityEvent {
   };
 }
 
+const ALERT_NOTIFICATIONS = [
+  { type: "danger"  as const, title: "SLA Breach",           message: "Zero Trust Rollout — approval overdue by 1h." },
+  { type: "warn"    as const, title: "Workflow Stalled",      message: "SIEM Migration has been in drafting for 60+ hours." },
+  { type: "warn"    as const, title: "Decision Engine Alert", message: "Deal risk score for AI Governance Platform increased to 72." },
+  { type: "success" as const, title: "AI Recommendation Accepted", message: "Presales lead approved AI-generated executive summary." },
+  { type: "info"    as const, title: "Workflow Completed",    message: "Commercial review gate passed — advancing to legal." },
+  { type: "danger"  as const, title: "Anomaly Detected",      message: "Approval latency for HDFC proposal is 3× above average." },
+];
+
 export function DemoModeProvider({ children }: { children: React.ReactNode }) {
   const searchParams  = useSearchParams();
   const pushEvent     = useRealtimeStore((s) => s.pushEvent);
   const addNote       = useNotificationStore((s) => s.addNotification);
+  const setDemoMode   = useDemoStore((s) => s.setDemoMode);
+  const resetCount    = useDemoStore((s) => s.resetCount);
   const injectedRef   = useRef(false);
   const intervalsRef  = useRef<number[]>([]);
 
   const enabled =
     searchParams.get("demo") === "1" ||
     process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
+  useEffect(() => {
+    setDemoMode(enabled);
+  }, [enabled, setDemoMode]);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    // Re-seed on reset
+    injectedRef.current = false;
+    intervalsRef.current.forEach((id) => clearInterval(id));
+    intervalsRef.current = [];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetCount]);
 
   useEffect(() => {
     if (!enabled || injectedRef.current) return;
@@ -89,35 +115,38 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
       setTimeout(() => pushEvent(makeEvent(i === 2 || i === 8)), i * 120);
     }
 
-    // Ongoing trickle: ~1 event every 8–15 seconds
-    const activityInterval = window.setInterval(() => {
-      const isAlert = Math.random() < 0.12;
-      pushEvent(makeEvent(isAlert));
-      if (isAlert) {
-        addNote({
-          type:    "warn",
-          title:   "SLA Alert",
-          message: "A proposal is approaching its SLA deadline.",
-        });
-      }
-    }, 8000 + Math.random() * 7000);
+    // Ongoing trickle: 1 event every 6–18 seconds (jittered for realism)
+    function scheduleNext() {
+      const delay = 6000 + Math.random() * 12000;
+      const id = window.setTimeout(() => {
+        const isAlert = Math.random() < 0.15;
+        pushEvent(makeEvent(isAlert));
+        if (isAlert) {
+          const note = ALERT_NOTIFICATIONS[Math.floor(Math.random() * ALERT_NOTIFICATIONS.length)];
+          addNote(note);
+        }
+        scheduleNext();
+      }, delay);
+      intervalsRef.current.push(id as unknown as number);
+    }
+    scheduleNext();
 
-    // Occasional approval notifications
+    // Periodic approval / workflow notifications
     const approvalInterval = window.setInterval(() => {
       addNote({
         type:    Math.random() > 0.5 ? "success" : "info",
         title:   Math.random() > 0.5 ? "Approval Received" : "Stage Advanced",
         message: DESCS[Math.floor(Math.random() * DESCS.length)],
       });
-    }, 25000 + Math.random() * 15000);
+    }, 22000 + Math.random() * 13000);
 
-    intervalsRef.current = [activityInterval, approvalInterval];
+    intervalsRef.current.push(approvalInterval);
 
     return () => {
       intervalsRef.current.forEach((id) => clearInterval(id));
       intervalsRef.current = [];
     };
-  }, [enabled, pushEvent, addNote]);
+  }, [enabled, pushEvent, addNote, resetCount]);
 
   return <>{children}</>;
 }

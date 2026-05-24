@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -17,9 +17,13 @@ from core.security import (
 )
 from db.database import get_db
 from lib.dependencies import CurrentUser
+from middleware.rate_limit import limiter
 from models.user import RefreshToken, User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+_MAX_FAILED_ATTEMPTS = 5
+_LOCKOUT_MINUTES = 15
 
 _REFRESH_COOKIE = "refresh_token"
 _COOKIE_OPTS: dict = dict(
@@ -56,16 +60,41 @@ class UserResponse(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("20/minute")
 def login(
+    request: Request,
     body: LoginRequest,
     response: Response,
     db: Annotated[Session, Depends(get_db)],
 ) -> TokenResponse:
     user = db.query(User).filter(User.email == body.email).first()
+
+    # Check lockout before password verification to prevent timing oracle
+    if user and user.locked_until:
+        if datetime.utcnow() < user.locked_until:
+            remaining = int((user.locked_until - datetime.utcnow()).total_seconds() // 60) + 1
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Account locked. Try again in {remaining} minute(s).",
+            )
+        else:
+            # Lockout expired — reset
+            user.failed_login_count = 0
+            user.locked_until = None
+
     if not user or not verify_password(body.password, user.hashed_password):
+        if user:
+            user.failed_login_count += 1
+            if user.failed_login_count >= _MAX_FAILED_ATTEMPTS:
+                user.locked_until = datetime.utcnow() + timedelta(minutes=_LOCKOUT_MINUTES)
+            db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
+
+    user.failed_login_count = 0
+    user.locked_until = None
 
     access_token = create_access_token(
         user_id=user.id, email=user.email, roles=user.roles, tenant_id=user.tenant_id,

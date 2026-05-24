@@ -1,0 +1,74 @@
+name: CD — Staging
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/presales-hub
+
+jobs:
+  build-push:
+    name: Build & push images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      sha: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-api
+          tags: type=sha,prefix=sha-
+      - name: Build + push hub-api
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/hub-api
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-api:${{ steps.meta.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-api:staging
+      - name: Build + push temporal-worker
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/hub-api
+          file: apps/hub-api/Dockerfile.worker
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-worker:${{ steps.meta.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-worker:staging
+      - name: Build + push hub-dashboard
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/hub-dashboard
+          push: true
+          build-args: NEXT_PUBLIC_HUB_API_URL=${{ secrets.STAGING_API_URL }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-dashboard:${{ steps.meta.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-dashboard:staging
+
+  deploy-staging:
+    name: Deploy to staging
+    needs: build-push
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: SSH deploy
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd /opt/presales-hub
+            docker compose -f deployment/docker/docker-compose.prod.yml pull
+            docker compose -f deployment/docker/docker-compose.prod.yml up -d --remove-orphans

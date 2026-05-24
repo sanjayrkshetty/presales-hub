@@ -2,6 +2,7 @@ import asyncio
 import logging
 from fastapi import WebSocket
 from events.redis_client import REDIS_URL, EVENTS_CHANNEL
+from telemetry.prometheus import ws_connections_active
 
 logger = logging.getLogger("events.broadcaster")
 
@@ -18,11 +19,13 @@ class WebSocketBroadcaster:
     async def register(self, ws: WebSocket) -> None:
         async with self._lock:
             self._clients.add(ws)
+        ws_connections_active.set(len(self._clients))
         logger.debug("WS registered. Total: %d", len(self._clients))
 
     async def unregister(self, ws: WebSocket) -> None:
         async with self._lock:
             self._clients.discard(ws)
+        ws_connections_active.set(len(self._clients))
         logger.debug("WS unregistered. Total: %d", len(self._clients))
 
     async def fanout(self, message: str) -> None:

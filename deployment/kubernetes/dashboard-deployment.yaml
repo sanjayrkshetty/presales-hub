@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hub-dashboard
+  namespace: presales-hub
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hub-dashboard
+  template:
+    metadata:
+      labels:
+        app: hub-dashboard
+    spec:
+      containers:
+        - name: hub-dashboard
+          image: ghcr.io/YOUR_ORG/presales-hub-dashboard:latest
+          ports:
+            - containerPort: 3002
+          env:
+            - name: NEXT_PUBLIC_HUB_API_URL
+              value: "https://api.yourdomain.com"
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 256Mi
+              cpu: 250m
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hub-dashboard
+  namespace: presales-hub
+spec:
+  selector:
+    app: hub-dashboard
+  ports:
+    - port: 3002
+      targetPort: 3002

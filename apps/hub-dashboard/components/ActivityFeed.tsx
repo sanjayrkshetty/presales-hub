@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRealtimeStore } from "@/lib/store/realtime";
+import { ActivityDetailModal } from "@/components/activity/ActivityDetailModal";
 import type { ActivityEvent } from "@/lib/types/events";
 import type { ActivityItem } from "@/lib/types/api";
 
@@ -21,7 +22,6 @@ function timeAgo(iso: string): string {
   return `${Math.round(diff / 86400)}d ago`;
 }
 
-// Maps ActivityEvent from the realtime store to the ActivityItem shape used by the UI
 function toActivityItem(e: ActivityEvent): ActivityItem {
   return {
     id:          e.id,
@@ -41,10 +41,9 @@ interface Props {
 export function ActivityFeed({ initialItems = [] }: Props) {
   const connectionState = useRealtimeStore((s) => s.connectionState);
   const connected       = connectionState === "connected" || connectionState === "degraded";
+  const eventLog        = useRealtimeStore((s) => s.eventLog);
+  const [selected, setSelected] = useState<ActivityItem | null>(null);
 
-  // Return the raw log (stable reference unless store mutates) and transform with useMemo
-  // Avoids a new array on every selector call which would cause infinite rerenders
-  const eventLog  = useRealtimeStore((s) => s.eventLog);
   const storeItems = useMemo(
     () =>
       eventLog
@@ -56,60 +55,64 @@ export function ActivityFeed({ initialItems = [] }: Props) {
     [eventLog]
   );
 
-  // Merge: store items take precedence (most recent); fall back to initial server items
   const items = storeItems.length > 0 ? storeItems : initialItems.slice(0, 50);
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="panel-header">
-        Activity Feed
-        <span
-          className="ml-auto flex items-center gap-1 text-[10px]"
-          style={{ color: connected ? "var(--success)" : "#64748b" }}
-        >
+    <>
+      <div className="flex flex-col h-full">
+        <div className="panel-header">
+          Activity Feed
           <span
-            className={`w-1.5 h-1.5 rounded-full inline-block ${
-              connected ? "bg-green-500 animate-pulse" : "bg-gray-600"
-            }`}
-          />
-          {connected ? "Live" : connectionState === "reconnecting" ? "Reconnecting…" : "Offline"}
-        </span>
-      </div>
-      <div className="flex-1 overflow-y-auto">
-        {items.length === 0 && (
-          <div className="p-4 text-center text-[11px]" style={{ color: "#64748b" }}>
-            Waiting for activity…
-          </div>
-        )}
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className="px-3 py-2 border-b flex gap-2 items-start hover:bg-white/[0.02] transition-colors"
-            style={{
-              borderColor: "var(--border)",
-              background: item.is_alert ? "rgba(239,68,68,0.04)" : undefined,
-            }}
+            className="ml-auto flex items-center gap-1 text-[10px]"
+            style={{ color: connected ? "var(--success)" : "#64748b" }}
           >
             <span
-              className="text-[11px] font-bold w-4 shrink-0 mt-0.5"
-              style={{ color: item.is_alert ? "var(--danger)" : "var(--accent)" }}
-            >
-              {ACTION_ICONS[item.action_type] ?? "·"}
-            </span>
-            <div className="flex-1 min-w-0">
-              <div
-                className="text-[11px] truncate"
-                style={{ color: item.is_alert ? "#fca5a5" : "#cbd5e1" }}
-              >
-                {item.description}
-              </div>
-              <div className="text-[10px] mt-0.5" style={{ color: "#475569" }}>
-                {item.actor_name} · {timeAgo(item.created_at)}
-              </div>
+              className={`w-1.5 h-1.5 rounded-full inline-block ${
+                connected ? "bg-green-500 animate-pulse" : "bg-gray-600"
+              }`}
+            />
+            {connected ? "Live" : connectionState === "reconnecting" ? "Reconnecting…" : "Offline"}
+          </span>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {items.length === 0 && (
+            <div className="p-4 text-center text-[11px]" style={{ color: "#64748b" }}>
+              Waiting for activity…
             </div>
-          </div>
-        ))}
+          )}
+          {items.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setSelected(item)}
+              className="w-full text-left px-3 py-2 border-b flex gap-2 items-start hover:bg-white/[0.04] transition-colors cursor-pointer"
+              style={{
+                borderColor: "var(--border)",
+                background: item.is_alert ? "rgba(239,68,68,0.04)" : undefined,
+              }}
+            >
+              <span
+                className="text-[11px] font-bold w-4 shrink-0 mt-0.5"
+                style={{ color: item.is_alert ? "var(--danger)" : "var(--accent)" }}
+              >
+                {ACTION_ICONS[item.action_type] ?? "·"}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div
+                  className="text-[11px] truncate"
+                  style={{ color: item.is_alert ? "#fca5a5" : "#cbd5e1" }}
+                >
+                  {item.description}
+                </div>
+                <div className="text-[10px] mt-0.5" style={{ color: "#475569" }}>
+                  {item.actor_name} · {timeAgo(item.created_at)}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
-    </div>
+
+      <ActivityDetailModal item={selected} onClose={() => setSelected(null)} />
+    </>
   );
 }

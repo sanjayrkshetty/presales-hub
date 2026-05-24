@@ -9,7 +9,7 @@ DASH_DIR     = apps/hub-dashboard
 .DEFAULT_GOAL := help
 
 .PHONY: help up up-build down reset seed logs logs-api logs-dash \
-        test test-api test-dash typecheck demo ps clean
+        logs-worker test test-api test-dash typecheck demo ps clean
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 help:
@@ -24,6 +24,7 @@ help:
 	@echo "  make logs        Tail API + dashboard logs"
 	@echo "  make logs-api    Tail hub-api logs only"
 	@echo "  make logs-dash   Tail hub-dashboard logs only"
+	@echo "  make logs-worker Tail temporal-worker logs only"
 	@echo "  make test        Run all tests (api + dashboard)"
 	@echo "  make test-api    Run backend pytest suite"
 	@echo "  make test-dash   Run frontend vitest suite"
@@ -65,6 +66,9 @@ logs-api:
 logs-dash:
 	$(COMPOSE) logs -f hub-dashboard
 
+logs-worker:
+	$(COMPOSE) logs -f temporal-worker
+
 ps:
 	$(COMPOSE) ps
 
@@ -90,6 +94,7 @@ demo:
 	@echo "  ║  API Docs     →  http://localhost:8003/docs          ║"
 	@echo "  ║  Temporal UI  →  http://localhost:8080               ║"
 	@echo "  ║  Jaeger UI    →  http://localhost:16686              ║"
+	@echo "  ║  Worker Health→  http://localhost:8004/health        ║"
 	@echo "  ╠══════════════════════════════════════════════════════╣"
 	@echo "  ║  Demo login (presales lead):                         ║"
 	@echo "  ║    Email:     arjun@sisa.demo                        ║"

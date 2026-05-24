@@ -147,6 +147,36 @@ services:
       retries:  10
       start_period: 20s
 
+  # ── Temporal Worker ──────────────────────────────────────────────────────────
+  temporal-worker:
+    build:
+      context: ./apps/hub-api
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    networks: [hub-net]
+    ports:
+      - "8004:8004"
+    env_file:
+      - .env.full.example
+    environment:
+      DATABASE_URL:      postgresql://${POSTGRES_USER:-presales}:${POSTGRES_PASSWORD:-presales_dev}@postgres:5432/${POSTGRES_DB:-presales_hub}
+      REDIS_URL:         redis://redis:6379
+      TEMPORAL_HOST:     temporal:7233
+      OTLP_ENDPOINT:     http://jaeger:4318
+      ENVIRONMENT:       development
+      WORKER_HEALTH_PORT: "8004"
+    depends_on:
+      temporal:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:     ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8004/health')\" || exit 1"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+      start_period: 20s
+
   # ── Seed (runs once, then exits) ─────────────────────────────────────────────
   hub-seed:
     build:
