@@ -67,11 +67,13 @@ export function FunnelChartInner({ stages }: Props) {
             color: "#e2e8f0",
           }}
           cursor={{ fill: "rgba(255,255,255,0.03)" }}
-          formatter={(v: number, _: string, { payload }: { payload: typeof data[0] }) => {
-            const suffix = payload.conversion !== null
-              ? ` (${payload.conversion}% conv.)`
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          formatter={(v: any, _: any, item: any) => {
+            const count = Number(v);
+            const suffix = item?.payload?.conversion != null
+              ? ` (${item.payload.conversion}% conv.)`
               : "";
-            return [`${v}${suffix}`, "Opportunities"];
+            return [`${count}${suffix}`, "Opportunities"];
           }}
         />
         <Bar dataKey="count" radius={[0, 3, 3, 0]} maxBarSize={24}>

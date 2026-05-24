@@ -9,7 +9,8 @@ DASH_DIR     = apps/hub-dashboard
 .DEFAULT_GOAL := help
 
 .PHONY: help up up-build down reset seed logs logs-api logs-dash \
-        logs-worker test test-api test-dash typecheck demo ps clean
+        logs-worker test test-api test-dash typecheck demo ps clean \
+        lint lint-ts test-e2e smoke-docker validate-all
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 help:
@@ -32,6 +33,11 @@ help:
 	@echo "  make demo        Print demo URLs and credentials"
 	@echo "  make ps          Show running service status"
 	@echo "  make clean       Remove Docker build cache"
+	@echo "  make lint        Run flake8 on hub-api Python"
+	@echo "  make lint-ts     Run ESLint on hub-dashboard TypeScript"
+	@echo "  make test-e2e    Run Playwright E2E tests"
+	@echo "  make smoke-docker Smoke-test running compose stack via curl"
+	@echo "  make validate-all Run lint → lint-ts → typecheck → test-api → test-dash → smoke-docker"
 	@echo ""
 
 # ── Stack lifecycle ───────────────────────────────────────────────────────────
@@ -103,6 +109,27 @@ demo:
 	@echo "  ║    Email:     admin@presaleshub.io                   ║"
 	@echo "  ║    Password:  Admin@1234                             ║"
 	@echo "  ╚══════════════════════════════════════════════════════╝"
+	@echo ""
+
+# ── Lint & Quality ────────────────────────────────────────────────────────────
+lint:
+	cd $(API_DIR) && python -m flake8 . --max-line-length=120 --ignore=E501,W503
+
+lint-ts:
+	cd $(DASH_DIR) && npx eslint "app/**/*.tsx" "components/**/*.tsx" "lib/**/*.ts" --max-warnings=0
+
+test-e2e:
+	cd $(DASH_DIR) && npx playwright test
+
+smoke-docker:
+	@echo "Checking compose services..."
+	@$(COMPOSE) ps
+	@curl -sf http://localhost:8003/api/health > /dev/null && echo "  hub-api health ✓" || echo "  hub-api health ✗ (stack not running?)"
+	@curl -sf http://localhost:3002 > /dev/null && echo "  dashboard      ✓" || echo "  dashboard      ✗ (stack not running?)"
+
+validate-all: lint lint-ts typecheck test-api test-dash smoke-docker
+	@echo ""
+	@echo "  ✓ validate-all complete"
 	@echo ""
 
 # ── Maintenance ───────────────────────────────────────────────────────────────

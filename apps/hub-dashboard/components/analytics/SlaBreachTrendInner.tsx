@@ -62,7 +62,8 @@ export function SlaBreachTrendInner({ sla }: Props) {
             color: "#e2e8f0",
           }}
           cursor={{ fill: "rgba(255,255,255,0.03)" }}
-          formatter={(v: number) => [v, "Breaches"]}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          formatter={(v: any) => [Number(v), "Breaches"]}
         />
         <Bar dataKey="count" radius={[3, 3, 0, 0]} maxBarSize={40}>
           {data.map((_, i) => (

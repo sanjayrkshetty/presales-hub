@@ -17,7 +17,7 @@ from core.security import (
 )
 from db.database import get_db
 from lib.dependencies import CurrentUser
-from middleware.rate_limit import limiter
+from middleware.rate_limit import login_rate_limiter
 from models.user import RefreshToken, User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -60,12 +60,12 @@ class UserResponse(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/login", response_model=TokenResponse)
-@limiter.limit("20/minute")
 def login(
     request: Request,
     body: LoginRequest,
     response: Response,
     db: Annotated[Session, Depends(get_db)],
+    _rl: None = Depends(login_rate_limiter),
 ) -> TokenResponse:
     user = db.query(User).filter(User.email == body.email).first()
 
@@ -162,7 +162,7 @@ def refresh(
     return TokenResponse(access_token=access_token)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 def logout(
     response: Response,
     db: Annotated[Session, Depends(get_db)],
