@@ -10,10 +10,15 @@ Usage:
            --users 50 --spawn-rate 5 --run-time 60s --headless
 
 Scenarios:
-- ApiUser: unauthenticated API reads (health, metrics)
+- ApiUser: unauthenticated health/metrics traffic
 - AuthenticatedUser: full user journey (login → analytics → proposals → SLA)
+- HeavyUser: constant-throughput integration client
+- ConcurrentProposalUser: burst proposal creation (10 VUs)
+- ApprovalStormUser: approval queue read+write loop (5 VUs)
+- AICopilotUser: AI copilot assist endpoint (5 VUs, 4s think time)
 """
 import random
+import string
 from locust import HttpUser, TaskSet, task, between, constant_throughput
 
 
@@ -102,3 +107,137 @@ class HeavyUser(HttpUser):
     tasks = [AuthenticatedTasks]
     wait_time = constant_throughput(2)  # 2 requests/second
     weight = 1
+
+
+# ── Phase 11 — Extended scenarios ─────────────────────────────────────────────
+
+PROPOSAL_STAGES = ["qualification", "scoping", "proposal", "negotiation", "closed"]
+OPPORTUNITY_NAMES = ["Acme Corp Pen Test", "BankCo ISO 27001", "HealthPlus HIPAA", "RetailX PCI DSS"]
+
+
+class ConcurrentProposalUser(HttpUser):
+    """Burst-creates proposals to stress DB write path. 10 VUs recommended."""
+    weight = 2
+    wait_time = between(0.5, 2)
+    _token: str = ""
+
+    def on_start(self) -> None:
+        cred = {"email": "arjun@sisa.demo", "password": "Demo@1234"}
+        with self.client.post("/auth/login", json=cred, catch_response=True, name="/auth/login") as res:
+            if res.status_code == 200:
+                self._token = res.json().get("access_token", "")
+                res.success()
+            else:
+                res.failure(f"Login failed: {res.status_code}")
+
+    def _headers(self) -> dict:
+        return {"Authorization": f"Bearer {self._token}"} if self._token else {}
+
+    @task(8)
+    def create_proposal(self) -> None:
+        suffix = "".join(random.choices(string.ascii_lowercase, k=5))
+        payload = {
+            "title": f"Load test proposal {suffix}",
+            "opportunity_name": random.choice(OPPORTUNITY_NAMES),
+            "stage": random.choice(PROPOSAL_STAGES),
+            "value": random.randint(50_000, 500_000),
+        }
+        with self.client.post("/api/proposals", json=payload,
+                              headers=self._headers(), catch_response=True,
+                              name="/api/proposals [create]") as res:
+            if res.status_code in (200, 201):
+                res.success()
+            elif res.status_code == 422:
+                res.failure(f"Validation error: {res.text[:200]}")
+            else:
+                res.failure(f"HTTP {res.status_code}")
+
+    @task(2)
+    def list_proposals(self) -> None:
+        self.client.get("/api/proposals", headers=self._headers(), name="/api/proposals [list]")
+
+
+class ApprovalStormUser(HttpUser):
+    """Hammers the approval queue to expose lock contention. 5 VUs recommended."""
+    weight = 1
+    wait_time = between(0.2, 1)
+    _token: str = ""
+
+    def on_start(self) -> None:
+        cred = {"email": "admin@presaleshub.io", "password": "Admin@1234"}
+        with self.client.post("/auth/login", json=cred, catch_response=True, name="/auth/login") as res:
+            if res.status_code == 200:
+                self._token = res.json().get("access_token", "")
+                res.success()
+            else:
+                res.failure(f"Admin login failed: {res.status_code}")
+
+    def _headers(self) -> dict:
+        return {"Authorization": f"Bearer {self._token}"} if self._token else {}
+
+    @task(6)
+    def list_pending_approvals(self) -> None:
+        self.client.get("/api/approvals?status=pending", headers=self._headers(),
+                        name="/api/approvals [pending]")
+
+    @task(3)
+    def list_all_approvals(self) -> None:
+        self.client.get("/api/approvals", headers=self._headers(),
+                        name="/api/approvals [all]")
+
+    @task(1)
+    def create_approval_request(self) -> None:
+        payload = {
+            "proposal_id": random.randint(1, 100),
+            "required_approvers": ["admin@presaleshub.io"],
+            "approval_type": "standard",
+        }
+        with self.client.post("/api/approvals", json=payload,
+                              headers=self._headers(), catch_response=True,
+                              name="/api/approvals [create]") as res:
+            if res.status_code in (200, 201, 404, 422):
+                res.success()  # 404/422 acceptable — proposal may not exist
+            else:
+                res.failure(f"HTTP {res.status_code}")
+
+
+class AICopilotUser(HttpUser):
+    """Exercises the AI copilot endpoint with 4s think time. 5 VUs recommended."""
+    weight = 1
+    wait_time = between(4, 8)  # AI responses are slow; simulate reading time
+    _token: str = ""
+
+    SECTIONS = ["executive_summary", "scope_of_work", "pricing", "risk_mitigation", "timeline"]
+    CONTEXTS = [
+        "BFSI client, 500 endpoints, PCI DSS scope",
+        "Healthcare startup, HIPAA readiness, 120 users",
+        "E-commerce, ISO 27001 gap assessment, 3-month timeline",
+    ]
+
+    def on_start(self) -> None:
+        cred = {"email": "arjun@sisa.demo", "password": "Demo@1234"}
+        with self.client.post("/auth/login", json=cred, catch_response=True, name="/auth/login") as res:
+            if res.status_code == 200:
+                self._token = res.json().get("access_token", "")
+                res.success()
+            else:
+                res.failure(f"Login failed: {res.status_code}")
+
+    def _headers(self) -> dict:
+        return {"Authorization": f"Bearer {self._token}"} if self._token else {}
+
+    @task
+    def copilot_assist(self) -> None:
+        payload = {
+            "section": random.choice(self.SECTIONS),
+            "context": random.choice(self.CONTEXTS),
+            "proposal_id": random.randint(1, 50),
+        }
+        with self.client.post("/api/copilot/assist", json=payload,
+                              headers=self._headers(), catch_response=True,
+                              name="/api/copilot/assist",
+                              timeout=30) as res:
+            if res.status_code in (200, 201, 503):
+                res.success()  # 503 = circuit breaker open, acceptable under load
+            else:
+                res.failure(f"HTTP {res.status_code}")
