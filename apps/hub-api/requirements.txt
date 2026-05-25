@@ -30,6 +30,7 @@ pgvector>=0.3.0         # pgvector Python client (optional; SQLite fallback if a
 # Authentication
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
+bcrypt<4.0.0
 
 # Rate limiting
 slowapi>=0.1.9

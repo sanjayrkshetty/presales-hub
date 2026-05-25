@@ -398,7 +398,7 @@ def seed(db):
                     due_at=NOW - timedelta(hours=1)))
 
     # ── SME Assignments ───────────────────────────────────────────────────────
-    sme_map = {0: smes[0], 1: smes[1], 2: smes[0], 3: smes[2], 4: smes[3], 5: smes[1]}
+    sme_map = {i: smes[i % len(smes)] for i in range(6)}
     for i, proposal in enumerate(proposals[:6]):
         sme = sme_map.get(i)
         if sme:
