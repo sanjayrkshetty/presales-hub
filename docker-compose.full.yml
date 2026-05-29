@@ -28,7 +28,7 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test:     ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-presales}"]
+      test:     ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-presales} -d ${POSTGRES_DB:-presales_hub}"]
       interval: 5s
       timeout:  3s
       retries:  10
