@@ -39,7 +39,7 @@ export function LiveProposalTable() {
   });
 
   const sorted = [...opps].sort((a, b) => {
-    if (sort === "sla")    return (a.sla.hours_remaining) - (b.sla.hours_remaining);
+    if (sort === "sla")    return (a.sla.hours_remaining ?? Infinity) - (b.sla.hours_remaining ?? Infinity);
     if (sort === "health") return (a.health_score) - (b.health_score);
     if (sort === "value")  return (b.deal_value_cr) - (a.deal_value_cr);
     if (sort === "stage")  return a.stage.localeCompare(b.stage);

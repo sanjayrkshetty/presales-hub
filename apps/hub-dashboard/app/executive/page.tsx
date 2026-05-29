@@ -143,8 +143,8 @@ export default function ExecutivePage() {
     .sort((a, b) => STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage));
   const maxFunnelCount = Math.max(...sortedFunnel.map((s) => s.count), 1);
 
-  const atRisk = sla ? [...sla.warning].sort((a, b) => a.sla.hours_remaining - b.sla.hours_remaining) : [];
-  const breached = sla ? [...sla.breached].sort((a, b) => a.sla.hours_remaining - b.sla.hours_remaining) : [];
+  const atRisk = sla ? [...sla.warning].sort((a, b) => (a.sla?.hours_remaining ?? 0) - (b.sla?.hours_remaining ?? 0)) : [];
+  const breached = sla ? [...sla.breached].sort((a, b) => (a.sla?.hours_remaining ?? 0) - (b.sla?.hours_remaining ?? 0)) : [];
   const topDeals = [...breached, ...atRisk].slice(0, 5);
 
   const overCapacitySME = (smeLoad ?? []).filter((s) => s.utilization_pct >= 80).length;
@@ -417,8 +417,8 @@ export default function ExecutivePage() {
                         <span>{opp.client?.name ?? "Unknown"}</span>
                         <span className={isBreached ? "text-danger" : "text-warn"}>
                           {isBreached
-                            ? `${Math.abs(opp.sla.hours_remaining).toFixed(0)}h overdue`
-                            : `${opp.sla.hours_remaining.toFixed(0)}h left`}
+                            ? `${Math.abs(opp.sla?.hours_remaining ?? 0).toFixed(0)}h overdue`
+                            : `${(opp.sla?.hours_remaining ?? 0).toFixed(0)}h left`}
                         </span>
                       </div>
                       <div className="text-2xs text-text-muted">

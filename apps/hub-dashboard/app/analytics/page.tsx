@@ -154,7 +154,7 @@ export default function AnalyticsPage() {
                     {opp.title}
                   </Link>
                   <span className="font-mono text-text-muted flex-shrink-0 ml-2">
-                    {formatHours(opp.sla.hours_remaining)}
+                    {formatHours(opp.sla?.hours_remaining ?? 0)}
                   </span>
                 </div>
               ))}
@@ -176,7 +176,7 @@ export default function AnalyticsPage() {
                     {opp.title}
                   </Link>
                   <span className="font-mono text-text-muted flex-shrink-0 ml-2">
-                    {formatHours(opp.sla.hours_remaining)} left
+                    {formatHours(opp.sla?.hours_remaining ?? 0)} left
                   </span>
                 </div>
               ))}
