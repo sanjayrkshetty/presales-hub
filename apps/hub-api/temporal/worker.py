@@ -10,6 +10,7 @@ Or via docker-compose (see docker-compose.full.yml — temporal-worker service).
 Health endpoint: GET http://localhost:8004/health
 """
 import asyncio
+import concurrent.futures
 import json
 import logging
 import os
@@ -132,6 +133,7 @@ async def main() -> None:
             execute_agent_task,
             persist_agent_result,
         ],
+        activity_executor=concurrent.futures.ThreadPoolExecutor(max_workers=10),
     )
 
     logger.info("Temporal worker running on task queue '%s'", TASK_QUEUE)
