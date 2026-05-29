@@ -79,12 +79,23 @@ export interface PipelineAnalytics {
   funnel: FunnelStage[];
 }
 
+export interface SlaAlertItem {
+  opportunity_id: string;
+  proposal_id: string | null;
+  client_name: string | null;
+  title: string;
+  stage: string;
+  hours_remaining: number;
+  hours_allowed: number;
+  deal_value_cr: number;
+}
+
 export interface SlaAnalytics {
   total_active: number;
   breached_count: number;
   warning_count: number;
-  breached: Opportunity[];
-  warning: Opportunity[];
+  breached: SlaAlertItem[];
+  warning: SlaAlertItem[];
   breach_by_stage: Record<string, number>;
   top_bottleneck: string | null;
 }

@@ -78,10 +78,13 @@ def sla_analytics(db: Session = Depends(get_db)):
         remaining = hours - elapsed
         item = {
             "opportunity_id": o.id,
+            "proposal_id": o.proposal.id if o.proposal else None,
+            "client_name": o.client.name if o.client else None,
             "title": o.title,
             "stage": o.stage,
             "hours_remaining": round(remaining, 1),
             "hours_allowed": hours,
+            "deal_value_cr": float(o.deal_value_cr or 0),
         }
         if remaining < 0:
             breached.append(item)

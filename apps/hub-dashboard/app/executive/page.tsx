@@ -143,8 +143,8 @@ export default function ExecutivePage() {
     .sort((a, b) => STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage));
   const maxFunnelCount = Math.max(...sortedFunnel.map((s) => s.count), 1);
 
-  const atRisk = sla ? [...sla.warning].sort((a, b) => (a.sla?.hours_remaining ?? 0) - (b.sla?.hours_remaining ?? 0)) : [];
-  const breached = sla ? [...sla.breached].sort((a, b) => (a.sla?.hours_remaining ?? 0) - (b.sla?.hours_remaining ?? 0)) : [];
+  const atRisk = sla ? [...sla.warning].sort((a, b) => a.hours_remaining - b.hours_remaining) : [];
+  const breached = sla ? [...sla.breached].sort((a, b) => a.hours_remaining - b.hours_remaining) : [];
   const topDeals = [...breached, ...atRisk].slice(0, 5);
 
   const overCapacitySME = (smeLoad ?? []).filter((s) => s.utilization_pct >= 80).length;
@@ -396,10 +396,10 @@ export default function ExecutivePage() {
             ) : (
               <div className="flex flex-col gap-2 overflow-auto">
                 {topDeals.map((opp) => {
-                  const isBreached = opp.sla.status === "breached";
+                  const isBreached = opp.hours_remaining < 0;
                   return (
                     <div
-                      key={opp.id}
+                      key={opp.opportunity_id}
                       className={cn(
                         "p-3 rounded border flex flex-col gap-1",
                         isBreached ? "border-danger/30 bg-danger/5" : "border-warn/30 bg-warn/5"
@@ -414,11 +414,11 @@ export default function ExecutivePage() {
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-2xs text-text-muted font-mono">
-                        <span>{opp.client?.name ?? "Unknown"}</span>
+                        <span>{opp.client_name ?? "Unknown"}</span>
                         <span className={isBreached ? "text-danger" : "text-warn"}>
                           {isBreached
-                            ? `${Math.abs(opp.sla?.hours_remaining ?? 0).toFixed(0)}h overdue`
-                            : `${(opp.sla?.hours_remaining ?? 0).toFixed(0)}h left`}
+                            ? `${Math.abs(opp.hours_remaining ?? 0).toFixed(0)}h overdue`
+                            : `${(opp.hours_remaining ?? 0).toFixed(0)}h left`}
                         </span>
                       </div>
                       <div className="text-2xs text-text-muted">

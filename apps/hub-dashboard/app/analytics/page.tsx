@@ -146,15 +146,15 @@ export default function AnalyticsPage() {
             <SectionHeader title="Breached SLAs" count={sla.breached_count} />
             <div className="mt-2 flex flex-col gap-1">
               {sla.breached.slice(0, 8).map((opp) => (
-                <div key={opp.id} className="flex items-center justify-between text-xs font-sans py-1 border-b border-border/30 last:border-0">
+                <div key={opp.opportunity_id} className="flex items-center justify-between text-xs font-sans py-1 border-b border-border/30 last:border-0">
                   <Link
-                    href={`/proposals/${opp.proposal_id ?? opp.id}`}
+                    href={`/proposals/${opp.proposal_id ?? opp.opportunity_id}`}
                     className="text-danger hover:text-danger/80 transition-colors truncate"
                   >
                     {opp.title}
                   </Link>
                   <span className="font-mono text-text-muted flex-shrink-0 ml-2">
-                    {formatHours(opp.sla?.hours_remaining ?? 0)}
+                    {formatHours(opp.hours_remaining)}
                   </span>
                 </div>
               ))}
@@ -168,15 +168,15 @@ export default function AnalyticsPage() {
             <SectionHeader title="At-Risk SLAs" count={sla.warning_count} />
             <div className="mt-2 flex flex-col gap-1">
               {sla.warning.slice(0, 8).map((opp) => (
-                <div key={opp.id} className="flex items-center justify-between text-xs font-sans py-1 border-b border-border/30 last:border-0">
+                <div key={opp.opportunity_id} className="flex items-center justify-between text-xs font-sans py-1 border-b border-border/30 last:border-0">
                   <Link
-                    href={`/proposals/${opp.proposal_id ?? opp.id}`}
+                    href={`/proposals/${opp.proposal_id ?? opp.opportunity_id}`}
                     className="text-warn hover:text-warn/80 transition-colors truncate"
                   >
                     {opp.title}
                   </Link>
                   <span className="font-mono text-text-muted flex-shrink-0 ml-2">
-                    {formatHours(opp.sla?.hours_remaining ?? 0)} left
+                    {formatHours(opp.hours_remaining)} left
                   </span>
                 </div>
               ))}
