@@ -236,7 +236,7 @@ export default function ExecutivePage() {
                   <TrendingUp size={13} className="text-accent" />
                 </div>
                 <span className={cn("font-mono font-bold text-accent", presentMode ? "text-4xl" : "text-3xl")}>
-                  {pipeline ? formatCurrency(pipeline.active_pipeline_cr) : "—"}
+                  {pipeline ? formatCurrency(pipeline.active_pipeline_cr ?? 0) : "—"}
                 </span>
                 <span className="text-xs text-text-muted">{pipeline?.total_opportunities ?? 0} active opportunities</span>
               </div>
@@ -247,7 +247,7 @@ export default function ExecutivePage() {
                   <Activity size={13} className="text-text-muted" />
                 </div>
                 <span className={cn("font-mono font-bold text-text-primary", presentMode ? "text-4xl" : "text-3xl")}>
-                  {pipeline ? formatPercent(pipeline.win_rate) : "—"}
+                  {pipeline ? formatPercent(pipeline.win_rate ?? 0) : "—"}
                 </span>
                 <span className="text-xs text-text-muted">Avg {pipeline?.avg_cycle_days?.toFixed(0) ?? "—"}d cycle time</span>
               </div>

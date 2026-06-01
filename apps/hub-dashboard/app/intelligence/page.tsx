@@ -21,9 +21,9 @@ export default function IntelligencePage() {
   return (
     <div className="p-4 flex flex-col gap-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MetricCard label="Win Rate"       value={pipeline ? formatPercent(pipeline.win_rate) : "—"} />
-        <MetricCard label="Pipeline"       value={pipeline ? formatCurrency(pipeline.active_pipeline_cr) : "—"} accent />
-        <MetricCard label="Avg Cycle"      value={pipeline ? `${pipeline.avg_cycle_days?.toFixed(0)}d` : "—"} />
+        <MetricCard label="Win Rate"       value={pipeline ? formatPercent(pipeline.win_rate ?? 0) : "—"} />
+        <MetricCard label="Pipeline"       value={pipeline ? formatCurrency(pipeline.active_pipeline_cr ?? 0) : "—"} accent />
+        <MetricCard label="Avg Cycle"      value={pipeline ? `${(pipeline.avg_cycle_days ?? 0).toFixed(0)}d` : "—"} />
         <MetricCard label="Total Active"   value={pipeline?.total_opportunities ?? "—"} />
       </div>
 

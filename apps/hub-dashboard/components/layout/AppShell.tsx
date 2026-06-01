@@ -1,7 +1,8 @@
 "use client";
 
-import { Suspense, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, type ReactNode } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useAuthStore } from "@/lib/auth/session";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { CommandPalette } from "./CommandPalette";
@@ -30,7 +31,35 @@ interface Props {
   children: ReactNode;
 }
 
+const PUBLIC_PREFIXES = ["/login"];
+
+function FullScreenLoader() {
+  return (
+    <div className="h-screen w-screen flex items-center justify-center bg-bg-primary">
+      <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>Loading…</span>
+    </div>
+  );
+}
+
 export function AppShell({ children }: Props) {
+  const pathname  = usePathname();
+  const isPublic  = !!pathname && PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
+  const user      = useAuthStore((s) => s.user);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const router    = useRouter();
+
+  useEffect(() => {
+    if (!isPublic && !isLoading && !user) router.replace("/login");
+  }, [isPublic, isLoading, user, router]);
+
+  // Public routes (login) render bare — no shell, no WebSockets, no auth gate.
+  if (isPublic) return <>{children}</>;
+
+  // Protected routes: hold until the session bootstrap resolves, so data queries
+  // don't fire before the access token exists (a 401 during boot would hard-redirect
+  // to /login — the cause of the full-reload login bounce, ITEM-15).
+  if (isLoading || !user) return <FullScreenLoader />;
+
   return (
     <Suspense>
       <DemoModeProvider>

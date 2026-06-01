@@ -72,10 +72,10 @@ export interface FunnelStage {
 
 export interface PipelineAnalytics {
   total_opportunities: number;
-  win_rate: number;
+  win_rate: number | null;
   acv_cr: number;
-  avg_cycle_days: number;
-  active_pipeline_cr: number;
+  avg_cycle_days: number | null;
+  active_pipeline_cr: number | null;
   funnel: FunnelStage[];
 }
 
@@ -187,9 +187,9 @@ export interface WorkflowStatus {
 
 export interface Forecast {
   period_label: string;
-  projected_revenue_cr: number;
-  confidence_low: number;
-  confidence_high: number;
+  weighted_forecast_cr: number;
+  forecast_low_cr: number;
+  forecast_high_cr: number;
   win_rate_trend: number;
 }
 

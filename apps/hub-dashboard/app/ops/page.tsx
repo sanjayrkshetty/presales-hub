@@ -39,14 +39,14 @@ export default function OpsPage() {
           <>
             <MetricCard
               label="Active Pipeline"
-              value={pipeline ? formatCurrency(pipeline.active_pipeline_cr) : "—"}
+              value={pipeline ? formatCurrency(pipeline.active_pipeline_cr ?? 0) : "—"}
               sub={`${pipeline?.total_opportunities ?? 0} opportunities`}
               icon={<BarChart3 size={13} />}
               accent
             />
             <MetricCard
               label="Win Rate"
-              value={pipeline ? formatPercent(pipeline.win_rate) : "—"}
+              value={pipeline ? formatPercent(pipeline.win_rate ?? 0) : "—"}
               sub={`Avg cycle: ${pipeline?.avg_cycle_days?.toFixed(0) ?? "—"}d`}
               icon={<TrendingUp size={13} />}
             />

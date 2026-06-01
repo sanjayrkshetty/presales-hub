@@ -109,8 +109,9 @@ export function useWebSocketManager() {
       });
     }, FLUSH_MS);
 
-    // Single mount — connect is stable via refs; empty deps prevents reconnect storm
-    CHANNELS.forEach((ch) => connect(ch));
+    // Connect only when authenticated. No token = logged out → don't open sockets
+    // (avoids the reconnect storm on the login page / during bootstrap).
+    if (accessToken) CHANNELS.forEach((ch) => connect(ch));
 
     return () => {
       mounted.current = false;
@@ -122,7 +123,7 @@ export function useWebSocketManager() {
       timers.current.clear();
       queue.current = [];
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [accessToken]); // eslint-disable-line react-hooks/exhaustive-deps — reconnect when auth token changes
 }
 
 export function useRealtimeEvents<T extends DomainEvent>(

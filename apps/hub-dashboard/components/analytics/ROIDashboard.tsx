@@ -34,14 +34,14 @@ export function ROIDashboard() {
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       <MetricCard
         label="Pipeline Value"
-        value={pipeline ? formatCurrency(pipeline.active_pipeline_cr) : "—"}
+        value={pipeline ? formatCurrency(pipeline.active_pipeline_cr ?? 0) : "—"}
         sub={`${pipeline?.total_opportunities ?? 0} active opportunities`}
         icon={<DollarSign size={13} />}
         accent
       />
       <MetricCard
         label="Win Rate"
-        value={pipeline ? formatPercent(pipeline.win_rate) : "—"}
+        value={pipeline ? formatPercent(pipeline.win_rate ?? 0) : "—"}
         sub={`Avg close: ${pipeline?.avg_cycle_days?.toFixed(0) ?? "—"}d`}
         icon={<TrendingUp size={13} />}
       />

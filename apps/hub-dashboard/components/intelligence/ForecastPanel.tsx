@@ -33,15 +33,15 @@ export function ForecastPanel() {
   const chartData = pipeline && rolling ? [
     {
       period: rolling.period_label  ?? "Rolling",
-      base:   rolling.projected_revenue_cr,
-      low:    rolling.confidence_low,
-      high:   rolling.confidence_high,
+      base:   rolling.weighted_forecast_cr,
+      low:    rolling.forecast_low_cr,
+      high:   rolling.forecast_high_cr,
     },
     {
       period: pipeline.period_label ?? "Current",
-      base:   pipeline.projected_revenue_cr,
-      low:    pipeline.confidence_low,
-      high:   pipeline.confidence_high,
+      base:   pipeline.weighted_forecast_cr,
+      low:    pipeline.forecast_low_cr,
+      high:   pipeline.forecast_high_cr,
     },
   ] : [];
 
@@ -54,9 +54,9 @@ export function ForecastPanel() {
         <div className="p-3 flex flex-col gap-3">
           <div className="grid grid-cols-3 gap-2">
             {([
-              ["Projected",    formatCurrency(pipeline.projected_revenue_cr)],
-              ["Confidence ▼", formatCurrency(pipeline.confidence_low)],
-              ["Confidence ▲", formatCurrency(pipeline.confidence_high)],
+              ["Projected",    formatCurrency(pipeline.weighted_forecast_cr)],
+              ["Confidence ▼", formatCurrency(pipeline.forecast_low_cr)],
+              ["Confidence ▲", formatCurrency(pipeline.forecast_high_cr)],
             ] as [string, string][]).map(([k, v]) => (
               <div key={k} className="panel-sm p-2">
                 <p className="text-2xs text-text-muted font-sans">{k}</p>

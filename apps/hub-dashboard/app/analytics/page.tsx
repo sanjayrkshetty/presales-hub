@@ -65,7 +65,7 @@ export default function AnalyticsPage() {
             />
             <MetricCard
               label="Win Rate"
-              value={pipeline ? `${(pipeline.win_rate * 100).toFixed(1)}%` : "—"}
+              value={pipeline ? `${((pipeline.win_rate ?? 0) * 100).toFixed(1)}%` : "—"}
               sub={`Avg cycle ${pipeline?.avg_cycle_days?.toFixed(0) ?? "—"}d`}
               icon={<TrendingUp size={13} />}
             />
