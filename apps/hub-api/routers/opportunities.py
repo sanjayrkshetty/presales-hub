@@ -79,16 +79,24 @@ def list_opportunities(db: Session = Depends(get_db)):
 
 @router.get("/{opp_id}")
 def get_opportunity(opp_id: str, db: Session = Depends(get_db)):
-    opp = db.scalar(
-        select(Opportunity)
-        .where(Opportunity.id == opp_id)
-        .options(
-            joinedload(Opportunity.client),
-            joinedload(Opportunity.proposal).joinedload(Proposal.assignments),
-            joinedload(Opportunity.proposal).joinedload(Proposal.approvals),
-            joinedload(Opportunity.proposal).joinedload(Proposal.activity),
-        )
+    _opts = (
+        joinedload(Opportunity.client),
+        joinedload(Opportunity.proposal).joinedload(Proposal.assignments),
+        joinedload(Opportunity.proposal).joinedload(Proposal.approvals),
+        joinedload(Opportunity.proposal).joinedload(Proposal.activity),
     )
+    opp = db.scalar(
+        select(Opportunity).where(Opportunity.id == opp_id).options(*_opts)
+    )
+    if not opp:
+        # Frontend proposal-detail links carry the proposal_id (the /proposals/{id}
+        # route is proposal-centric), so fall back to resolving by Proposal.id.
+        opp = db.scalar(
+            select(Opportunity)
+            .join(Opportunity.proposal)
+            .where(Proposal.id == opp_id)
+            .options(*_opts)
+        )
     if not opp:
         raise HTTPException(404, "Opportunity not found")
 

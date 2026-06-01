@@ -26,10 +26,15 @@ _MAX_FAILED_ATTEMPTS = 5
 _LOCKOUT_MINUTES = 15
 
 _REFRESH_COOKIE = "refresh_token"
+# SameSite=None is required so the cookie is sent on cross-origin requests from the
+# dashboard (:3002 → :8003). A SameSite=None cookie is only valid WITH Secure — Chrome
+# rejects None-without-Secure. localhost is a trusted/secure context, so Secure cookies
+# are accepted over http://localhost in dev; production is HTTPS, so secure=True is correct
+# in both. Must stay in sync with the delete_cookie() attributes in logout().
 _COOKIE_OPTS: dict = dict(
     httponly=True,
-    samesite="lax",
-    secure=settings.ENVIRONMENT == "production",
+    samesite="none",
+    secure=True,
     max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86_400,
 )
 
@@ -179,7 +184,10 @@ def logout(
             stored.revoked = True
             stored.revoked_at = datetime.utcnow()
             db.commit()
-    response.delete_cookie(_REFRESH_COOKIE)
+    # Attributes must match those used when setting the cookie, or the browser won't clear it.
+    response.delete_cookie(
+        _REFRESH_COOKIE, path="/", httponly=True, samesite="none", secure=True
+    )
 
 
 @router.get("/me", response_model=UserResponse)

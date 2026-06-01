@@ -5,7 +5,7 @@ import time
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, text
 
@@ -14,6 +14,7 @@ from events.broadcaster import broadcaster
 from models import ActivityFeed
 from routers import opportunities, proposals, approvals, stakeholders, analytics, ai, workflows, decision_intelligence, memory, copilot, agents, strategy, integration, platform, auth as auth_router, ai_governance, admin as admin_router
 from core.config import settings
+from lib.dependencies import get_current_user
 from hub_platform.middleware.tenant_context import TenantContextMiddleware
 from middleware.audit import AuditLogMiddleware
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler, RateLimitExceeded
@@ -108,23 +109,28 @@ app.add_middleware(
     ],
 )
 
+# All /api/* routers require a valid access token (Bearer header or access_token cookie).
+# auth_router (/auth login, refresh) stays public; /api/health, /api/ready, /metrics are
+# app-level routes below and remain unauthenticated for liveness/scrape probes.
+_authed = [Depends(get_current_user)]
+
 app.include_router(auth_router.router)
-app.include_router(opportunities.router)
-app.include_router(proposals.router)
-app.include_router(approvals.router)
-app.include_router(stakeholders.router)
-app.include_router(analytics.router)
-app.include_router(ai.router)
-app.include_router(workflows.router)
-app.include_router(decision_intelligence.router)
-app.include_router(memory.router)
-app.include_router(copilot.router)
-app.include_router(agents.router)
-app.include_router(strategy.router)
-app.include_router(integration.router)
-app.include_router(platform.router)
-app.include_router(ai_governance.router)
-app.include_router(admin_router.router)
+app.include_router(opportunities.router, dependencies=_authed)
+app.include_router(proposals.router, dependencies=_authed)
+app.include_router(approvals.router, dependencies=_authed)
+app.include_router(stakeholders.router, dependencies=_authed)
+app.include_router(analytics.router, dependencies=_authed)
+app.include_router(ai.router, dependencies=_authed)
+app.include_router(workflows.router, dependencies=_authed)
+app.include_router(decision_intelligence.router, dependencies=_authed)
+app.include_router(memory.router, dependencies=_authed)
+app.include_router(copilot.router, dependencies=_authed)
+app.include_router(agents.router, dependencies=_authed)
+app.include_router(strategy.router, dependencies=_authed)
+app.include_router(integration.router, dependencies=_authed)
+app.include_router(platform.router, dependencies=_authed)
+app.include_router(ai_governance.router, dependencies=_authed)
+app.include_router(admin_router.router, dependencies=_authed)
 
 
 @app.get("/api/health")
