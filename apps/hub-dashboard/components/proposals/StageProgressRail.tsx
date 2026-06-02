@@ -1,12 +1,8 @@
 import { cn } from "@/lib/utils";
-import { Check, Circle } from "lucide-react";
+import { Check } from "lucide-react";
+import { STAGE_ORDER, stageLabel } from "@/lib/workflow/stages";
 
-const STAGES = [
-  "intake", "qualification", "sme_assignment", "drafting",
-  "technical_review", "commercial_review", "legal_review",
-  "finance_review", "parallel_reviews", "final_approval",
-  "submission", "closed_won",
-] as const;
+const STAGES = STAGE_ORDER;
 
 interface Props { currentStage: string; }
 
@@ -35,7 +31,7 @@ export function StageProgressRail({ currentStage }: Props) {
                   "text-2xs font-sans whitespace-nowrap",
                   active ? "text-accent font-semibold" : "text-text-muted"
                 )}>
-                  {stage.replace(/_/g, " ")}
+                  {stageLabel(stage)}
                 </span>
               </div>
               {i < STAGES.length - 1 && (

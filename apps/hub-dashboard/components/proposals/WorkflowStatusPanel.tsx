@@ -1,16 +1,21 @@
 "use client";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { proposalsApi } from "@/lib/api/proposals";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { nextStages, stageLabel } from "@/lib/workflow/stages";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Spinner } from "@/components/ui/Spinner";
 import { timeAgo } from "@/lib/utils";
-import { GitBranch, Play, X } from "lucide-react";
+import { GitBranch, Play, X, ArrowRight } from "lucide-react";
 
 interface Props { proposalId: string; }
 
 export function WorkflowStatusPanel({ proposalId }: Props) {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const [note, setNote] = useState("");
 
   const { data: wf, isLoading } = useQuery({
     queryKey: ["proposals", proposalId, "workflow"],
@@ -28,6 +33,19 @@ export function WorkflowStatusPanel({ proposalId }: Props) {
     mutationFn: () => proposalsApi.cancelWorkflow(proposalId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["proposals", proposalId, "workflow"] }),
   });
+
+  const advance = useMutation({
+    mutationFn: (toStage: string) =>
+      proposalsApi.signalTransition(proposalId, toStage, user?.id, note || undefined),
+    onSuccess: () => {
+      setNote("");
+      // Advancing into a review stage creates approval rows — refresh both panels.
+      qc.invalidateQueries({ queryKey: ["proposals", proposalId, "workflow"] });
+      qc.invalidateQueries({ queryKey: ["proposals", proposalId, "approvals"] });
+    },
+  });
+
+  const advanceOptions = wf?.is_active ? nextStages(wf.stage) : [];
 
   return (
     <div className="panel">
@@ -73,6 +91,27 @@ export function WorkflowStatusPanel({ proposalId }: Props) {
                       <span className="text-text-secondary">{t.to_stage?.replace(/_/g, " ")}</span>
                       {t.actor_id && <span className="text-text-muted">by {t.actor_id}</span>}
                     </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {advanceOptions.length > 0 && (
+              <div className="flex flex-col gap-1.5 pt-1 border-t border-border">
+                <span className="text-2xs uppercase tracking-widest text-text-muted font-sans font-semibold">Advance Stage</span>
+                <input
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Decision note (optional)…"
+                  className="w-full bg-transparent text-xs text-text-primary placeholder:text-text-muted outline-none border-b border-border pb-1 font-sans"
+                />
+                <div className="flex flex-wrap gap-1.5">
+                  {advanceOptions.map((s) => (
+                    <button key={s} onClick={() => advance.mutate(s)}
+                      disabled={advance.isPending}
+                      className="flex items-center gap-1 px-2 py-0.5 rounded text-2xs font-sans font-semibold bg-accent/10 text-accent border border-accent/30 hover:bg-accent/20 transition-colors disabled:opacity-50">
+                      {advance.isPending ? <Spinner size="sm" /> : <ArrowRight size={9} />} {stageLabel(s)}
+                    </button>
                   ))}
                 </div>
               </div>

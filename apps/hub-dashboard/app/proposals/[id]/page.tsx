@@ -6,6 +6,8 @@ import { intelligenceApi } from "@/lib/api/intelligence";
 import { StageProgressRail } from "@/components/proposals/StageProgressRail";
 import { WorkflowStatusPanel } from "@/components/proposals/WorkflowStatusPanel";
 import { ProposalApprovalChain } from "@/components/proposals/ProposalApprovalChain";
+import { AssignSmePanel } from "@/components/proposals/AssignSmePanel";
+import { StageCopilot } from "@/components/proposals/StageCopilot";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -93,6 +95,9 @@ export default function ProposalWarRoom() {
             {/* Left column */}
             <div className="col-span-12 lg:col-span-5 flex flex-col gap-4">
               <WorkflowStatusPanel proposalId={id} />
+              {opp.stage === "sme_assignment" && (
+                <AssignSmePanel proposalId={id} rfpType={opp.rfp_type} />
+              )}
               <ProposalApprovalChain proposalId={id} />
             </div>
 
@@ -127,8 +132,8 @@ export default function ProposalWarRoom() {
               <Zap size={11} className="text-purple" />
               <span>AI Copilot</span>
             </div>
-            <div className="p-3 text-xs text-text-muted font-sans">
-              Copilot panel — visit <Link href="/copilot" className="text-purple hover:text-purple/80">/copilot</Link> for full workspace
+            <div className="p-3 overflow-y-auto flex-1">
+              <StageCopilot stage={opp.stage} proposalId={id} />
             </div>
           </div>
         )}

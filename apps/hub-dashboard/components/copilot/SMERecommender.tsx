@@ -13,8 +13,8 @@ function resultText(result: Record<string, unknown>): string {
   return JSON.stringify(result, null, 2);
 }
 
-export function SMERecommender() {
-  const [proposalId, setProposalId] = useState("");
+export function SMERecommender({ initialProposalId = "" }: { initialProposalId?: string } = {}) {
+  const [proposalId, setProposalId] = useState(initialProposalId);
 
   const recommend = useMutation({
     mutationFn: () => copilotApi.recommendSme(proposalId),

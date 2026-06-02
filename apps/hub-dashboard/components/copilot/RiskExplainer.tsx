@@ -14,8 +14,8 @@ function resultText(result: Record<string, unknown>): string {
   return JSON.stringify(result, null, 2);
 }
 
-export function RiskExplainer() {
-  const [proposalId, setProposalId] = useState("");
+export function RiskExplainer({ initialProposalId = "" }: { initialProposalId?: string } = {}) {
+  const [proposalId, setProposalId] = useState(initialProposalId);
 
   const explain = useMutation({
     mutationFn: () => copilotApi.explainRisk(proposalId),

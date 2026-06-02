@@ -14,8 +14,8 @@ function resultText(result: Record<string, unknown>): string {
   return JSON.stringify(result, null, 2);
 }
 
-export function DraftAssist() {
-  const [proposalId, setProposalId] = useState("");
+export function DraftAssist({ initialProposalId = "" }: { initialProposalId?: string } = {}) {
+  const [proposalId, setProposalId] = useState(initialProposalId);
   const [section, setSection] = useState("executive_summary");
 
   const draft = useMutation({
