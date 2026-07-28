@@ -24,6 +24,7 @@ from temporal.schemas import (
     ProposalWorkflowInput, TransitionInput, TransitionResult,
     InitParallelApprovalsInput, ParallelReviewInput, ParallelReviewResult,
     EventInput, TASK_QUEUE, TERMINAL_STAGES, PARALLEL_REVIEW_STAGES,
+    STAGE_TRANSITIONS,
 )
 
 # Activity imports must be inside imports_passed_through() so Temporal's
@@ -197,7 +198,21 @@ class ProposalLifecycleWorkflow:
         actor_id: Optional[str] = None,
         note: Optional[str] = None,
     ) -> None:
-        """Advance the proposal to the next stage."""
+        """Advance the proposal to the next stage (validated against STAGE_TRANSITIONS)."""
+        allowed = STAGE_TRANSITIONS.get(self._stage, [])
+        if to_stage not in allowed:
+            workflow.logger.warning(
+                "Rejected illegal transition %s -> %s (allowed=%s)",
+                self._stage, to_stage, allowed,
+            )
+            return
+        # Guard single pending slot against rapid-signal overwrite
+        if self._pending is not None:
+            workflow.logger.warning(
+                "Ignoring transition to %s; pending %s already queued",
+                to_stage, self._pending[0],
+            )
+            return
         self._pending = (to_stage, actor_id, note)
 
     @workflow.signal

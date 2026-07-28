@@ -27,6 +27,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from db.database import get_db
+from lib.dependencies import require_permission
 from memory_engine.storage.factory import get_vector_store
 from memory_engine.semantic_search.searcher import SemanticSearcher
 from memory_engine.knowledge.proposal_memory import ProposalMemory
@@ -55,7 +56,7 @@ class SearchRequest(BaseModel):
 # ── Indexing endpoints ─────────────────────────────────────────────────────────
 
 @router.post("/index/proposal/{proposal_id}")
-def index_proposal(proposal_id: str, db: Session = Depends(get_db)):
+def index_proposal(proposal_id: str, db: Session = Depends(get_db), _authz=require_permission("memory:write")):
     """Index all content sections of a proposal into memory."""
     set_proposal_id(proposal_id)
     memory = ProposalMemory(db)
@@ -66,7 +67,7 @@ def index_proposal(proposal_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/index/approval/{approval_id}")
-def index_approval(approval_id: str, db: Session = Depends(get_db)):
+def index_approval(approval_id: str, db: Session = Depends(get_db), _authz=require_permission("memory:write")):
     """Index an approval's decision rationale into approval memory."""
     memory = ApprovalMemory(db)
     result = memory.index_approval(approval_id)
@@ -76,7 +77,7 @@ def index_approval(approval_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/index/opportunity/{opportunity_id}")
-def index_opportunity(opportunity_id: str, db: Session = Depends(get_db)):
+def index_opportunity(opportunity_id: str, db: Session = Depends(get_db), _authz=require_permission("memory:write")):
     """Index an opportunity as customer intelligence memory."""
     memory = CustomerMemory(db)
     result = memory.index_opportunity(opportunity_id)
@@ -86,7 +87,7 @@ def index_opportunity(opportunity_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/index/sme/{stakeholder_id}")
-def index_sme(stakeholder_id: str, db: Session = Depends(get_db)):
+def index_sme(stakeholder_id: str, db: Session = Depends(get_db), _authz=require_permission("memory:write")):
     """Index an SME's expertise profile into SME memory."""
     memory = SmeMemory(db)
     result = memory.index_sme(stakeholder_id)
@@ -98,7 +99,7 @@ def index_sme(stakeholder_id: str, db: Session = Depends(get_db)):
 # ── Search endpoints ───────────────────────────────────────────────────────────
 
 @router.post("/search")
-async def semantic_search(req: SearchRequest, db: Session = Depends(get_db)):
+async def semantic_search(req: SearchRequest, db: Session = Depends(get_db), _authz=require_permission("memory:read")):
     """
     Universal semantic search across all memory types (or a specific one).
     Supports optional LLM reranking for improved relevance.
@@ -230,7 +231,7 @@ def memory_status(db: Session = Depends(get_db)):
 
 
 @router.post("/reindex/proposal/{proposal_id}")
-def reindex_proposal(proposal_id: str, db: Session = Depends(get_db)):
+def reindex_proposal(proposal_id: str, db: Session = Depends(get_db), _authz=require_permission("memory:write")):
     """
     Force full re-indexing of a proposal.
     Deactivates stale chunks before inserting fresh embeddings.

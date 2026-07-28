@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from db.database import get_db
+from lib.dependencies import require_permission
 
 router = APIRouter(prefix="/api/platform", tags=["platform"])
 
@@ -61,7 +62,7 @@ class FeatureFlagRequest(BaseModel):
 # ── Tenant management ──────────────────────────────────────────────────────────
 
 @router.post("/tenants", status_code=201)
-def provision_tenant(req: ProvisionRequest, db: Session = Depends(get_db)):
+def provision_tenant(req: ProvisionRequest, db: Session = Depends(get_db), _authz=require_permission("user:admin")):
     from hub_platform.tenants.provisioner import TenantProvisioner
     result = TenantProvisioner(db).provision_tenant(
         org_name=req.org_name,
@@ -144,7 +145,7 @@ def get_tenant(tenant_id: str, db: Session = Depends(get_db)):
 
 
 @router.patch("/tenants/{tenant_id}/status")
-def update_tenant_status(tenant_id: str, req: StatusUpdateRequest, db: Session = Depends(get_db)):
+def update_tenant_status(tenant_id: str, req: StatusUpdateRequest, db: Session = Depends(get_db), _authz=require_permission("user:admin")):
     from hub_platform.tenants.provisioner import TenantProvisioner
     prov = TenantProvisioner(db)
 
@@ -207,7 +208,7 @@ def get_tenant_quotas(tenant_id: str, db: Session = Depends(get_db)):
 
 
 @router.patch("/tenants/{tenant_id}/quotas")
-def update_tenant_quota(tenant_id: str, req: QuotaUpdateRequest, db: Session = Depends(get_db)):
+def update_tenant_quota(tenant_id: str, req: QuotaUpdateRequest, db: Session = Depends(get_db), _authz=require_permission("user:admin")):
     from hub_platform.quotas.engine import QuotaEngine
     from hub_platform.governance.audit_trail import GovernanceAuditTrail
 
@@ -253,7 +254,7 @@ def get_tenant_audit(tenant_id: str, limit: int = 50, db: Session = Depends(get_
 # ── Feature flags ──────────────────────────────────────────────────────────────
 
 @router.post("/feature-flags")
-def set_feature_flag(req: FeatureFlagRequest, db: Session = Depends(get_db)):
+def set_feature_flag(req: FeatureFlagRequest, db: Session = Depends(get_db), _authz=require_permission("user:admin")):
     from hub_platform.feature_flags.manager import FeatureFlagManager
     fm = FeatureFlagManager(db)
     flag = fm.set_flag(

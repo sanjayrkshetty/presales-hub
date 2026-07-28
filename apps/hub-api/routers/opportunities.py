@@ -6,6 +6,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import Session, joinedload
 
 from db.database import get_db
+from lib.dependencies import require_permission
 from models import Opportunity, Client, Proposal, SlaConfig, AuditLog
 
 router = APIRouter(prefix="/api/opportunities", tags=["opportunities"])
@@ -153,7 +154,7 @@ def get_opportunity(opp_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("")
-def create_opportunity(payload: OpportunityCreate, db: Session = Depends(get_db)):
+def create_opportunity(payload: OpportunityCreate, db: Session = Depends(get_db), _authz=require_permission("opportunity:write")):
     # Find or create client
     client = db.scalar(select(Client).where(Client.name == payload.client_name))
     if not client:

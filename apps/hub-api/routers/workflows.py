@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from temporal.client import get_temporal_client
+from lib.dependencies import require_permission
 from temporal.schemas import ProposalWorkflowInput, ParallelReviewInput, TASK_QUEUE
 from telemetry.context import get_correlation_id, set_proposal_id
 
@@ -54,7 +55,7 @@ def _require_temporal(client):
 
 
 @router.post("/proposals/{proposal_id}/start")
-async def start_proposal_workflow(proposal_id: str):
+async def start_proposal_workflow(proposal_id: str, _authz=require_permission("proposal:write")):
     """
     Start a durable ProposalLifecycleWorkflow for this proposal.
     Idempotent: returns 409 if the workflow is already running.
@@ -84,7 +85,7 @@ async def start_proposal_workflow(proposal_id: str):
 
 
 @router.post("/proposals/{proposal_id}/transition")
-async def signal_transition(proposal_id: str, req: TransitionSignalRequest):
+async def signal_transition(proposal_id: str, req: TransitionSignalRequest, _authz=require_permission("proposal:write")):
     """Signal a stage transition into the running workflow."""
     set_proposal_id(proposal_id)
     client = await get_temporal_client()
@@ -127,7 +128,7 @@ async def query_workflow_status(proposal_id: str):
 
 
 @router.post("/proposals/{proposal_id}/cancel")
-async def cancel_workflow(proposal_id: str):
+async def cancel_workflow(proposal_id: str, _authz=require_permission("proposal:write")):
     """Cancel the proposal workflow — signals it to stop gracefully."""
     client = await get_temporal_client()
     _require_temporal(client)
@@ -143,7 +144,7 @@ async def cancel_workflow(proposal_id: str):
 
 
 @router.post("/proposals/{proposal_id}/reviews/submit")
-async def submit_review_decision(proposal_id: str, req: ReviewDecisionRequest):
+async def submit_review_decision(proposal_id: str, req: ReviewDecisionRequest, _authz=require_permission("approval:approve")):
     """
     Send a review decision into the ParallelReviewWorkflow child workflow.
     The child workflow ID is deterministically derived from proposal_id.
@@ -169,7 +170,7 @@ async def submit_review_decision(proposal_id: str, req: ReviewDecisionRequest):
 
 
 @router.post("/proposals/{proposal_id}/sla/resolve")
-async def resolve_sla(proposal_id: str, stage: str):
+async def resolve_sla(proposal_id: str, stage: str, _authz=require_permission("proposal:write")):
     """
     Signal the SlaEscalationWorkflow that the proposal has advanced,
     disarming the SLA timer before it fires.

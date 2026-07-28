@@ -24,6 +24,7 @@ from sqlalchemy import select, and_, func
 from sqlalchemy.orm import Session
 
 from db.database import get_db
+from lib.dependencies import require_permission
 from models import (
     Proposal, Opportunity, Stakeholder, Assignment, Approval,
     SlaConfig, AuditLog, SmeRoutingRule,
@@ -195,6 +196,7 @@ async def recompute_proposal_health(
     proposal_id: str,
     enrich: bool = Query(False, description="Call LLM for narrative explanation"),
     db: Session = Depends(get_db),
+    _authz=require_permission("proposal:write"),
 ):
     """Force a fresh health score computation and persist it."""
     set_proposal_id(proposal_id)
@@ -414,7 +416,7 @@ def get_anomalies(
 
 
 @router.post("/anomalies/{anomaly_id}/acknowledge")
-def acknowledge_anomaly(anomaly_id: str, db: Session = Depends(get_db)):
+def acknowledge_anomaly(anomaly_id: str, db: Session = Depends(get_db), _authz=require_permission("strategy:write")):
     row = db.scalar(select(ApprovalAnomaly).where(ApprovalAnomaly.id == anomaly_id))
     if not row:
         raise HTTPException(404, "Anomaly not found")

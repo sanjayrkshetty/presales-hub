@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from db.database import get_db
+from lib.dependencies import require_permission
 
 # Import agent prompt modules to populate registry
 import agent_engine.prompts.agent_rfp_analysis        # noqa: F401
@@ -76,7 +77,7 @@ class SimulateRequest(BaseModel):
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.post("/tasks")
-async def submit_task(req: SubmitTaskRequest, db: Session = Depends(get_db)):
+async def submit_task(req: SubmitTaskRequest, db: Session = Depends(get_db), _authz=require_permission("agent:execute")):
     contract = TaskContract(
         agent_type=req.agent_type,
         proposal_id=req.proposal_id,
@@ -114,7 +115,7 @@ def get_task_status(task_id: str):
 
 
 @router.post("/tasks/{task_id}/approve")
-def approve_task(task_id: str):
+def approve_task(task_id: str, _authz=require_permission("agent:execute")):
     memory = get_agent_memory()
     entry = memory.get(task_id)
     if entry is None:
@@ -127,7 +128,7 @@ def approve_task(task_id: str):
 
 
 @router.post("/tasks/{task_id}/reject")
-def reject_task(task_id: str):
+def reject_task(task_id: str, _authz=require_permission("agent:execute")):
     memory = get_agent_memory()
     entry = memory.get(task_id)
     if entry is None:
@@ -143,7 +144,7 @@ def list_registry():
 
 
 @router.post("/plans")
-async def submit_plan(req: SubmitPlanRequest, db: Session = Depends(get_db)):
+async def submit_plan(req: SubmitPlanRequest, db: Session = Depends(get_db), _authz=require_permission("agent:execute")):
     try:
         contracts = build_plan(
             plan_name=req.plan_name,
@@ -164,7 +165,7 @@ async def submit_plan(req: SubmitPlanRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/simulate")
-async def simulate(req: SimulateRequest, db: Session = Depends(get_db)):
+async def simulate(req: SimulateRequest, db: Session = Depends(get_db), _authz=require_permission("agent:execute")):
     scenarios = [
         SimulationScenario(
             name=s.get("name", f"scenario_{i}"),

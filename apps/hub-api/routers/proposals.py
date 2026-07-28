@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from db.database import get_db
+from lib.dependencies import require_permission
 from events.bus import publish
 from events.schema import ProposalTransitionedEvent, SmeAssignedEvent
 from models import Proposal, Stakeholder, Assignment, ActivityFeed, AuditLog, SlaConfig, SmeRoutingRule
@@ -53,7 +54,7 @@ def _find_reviewer(db: Session, role: str) -> Stakeholder | None:
 
 
 @router.post("/{proposal_id}/transition")
-def transition_proposal(proposal_id: str, req: TransitionRequest, db: Session = Depends(get_db)):
+def transition_proposal(proposal_id: str, req: TransitionRequest, db: Session = Depends(get_db), _authz=require_permission("proposal:write")):
     set_proposal_id(proposal_id)
     if req.actor_id:
         set_actor_id(req.actor_id)
@@ -155,7 +156,7 @@ def transition_proposal(proposal_id: str, req: TransitionRequest, db: Session = 
 
 
 @router.post("/{proposal_id}/assign-sme")
-def assign_sme(proposal_id: str, req: AssignSmeRequest, db: Session = Depends(get_db)):
+def assign_sme(proposal_id: str, req: AssignSmeRequest, db: Session = Depends(get_db), _authz=require_permission("proposal:write")):
     set_proposal_id(proposal_id)
     proposal = db.scalar(select(Proposal).where(Proposal.id == proposal_id))
     if not proposal:
