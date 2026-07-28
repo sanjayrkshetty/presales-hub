@@ -112,7 +112,9 @@ export function ActivityFeed({ initialItems = [] }: Props) {
         </div>
       </div>
 
-      <ActivityDetailModal item={selected} onClose={() => setSelected(null)} />
+      {selected && (
+        <ActivityDetailModal item={selected} onClose={() => setSelected(null)} />
+      )}
     </>
   );
 }
