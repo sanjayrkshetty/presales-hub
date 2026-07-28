@@ -38,3 +38,7 @@ Thumbs.db
 # Local proposal corpus (never commit raw/scrubbed trees)
 corpus/
 
+
+.env.smoke
+
+smoke-draft.docx
