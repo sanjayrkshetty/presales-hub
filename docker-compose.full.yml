@@ -135,6 +135,13 @@ services:
       OTLP_ENDPOINT:   http://jaeger:4318
       ENVIRONMENT:     development
       ALLOWED_ORIGINS: '["http://localhost:3002","http://hub-dashboard:3002"]'
+      GROQ_API_KEY:          ${GROQ_API_KEY:-}
+      LANGFUSE_PUBLIC_KEY:  ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY:  ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_BASE_URL:    ${LANGFUSE_BASE_URL:-https://cloud.langfuse.com}
+      LANGFUSE_HOST:        ${LANGFUSE_HOST:-https://cloud.langfuse.com}
+      EMBEDDING_PROVIDER:   ${EMBEDDING_PROVIDER:-minilm}
+      LLM_PROVIDER:         ${LLM_PROVIDER:-groq}
     depends_on:
       postgres:
         condition: service_healthy

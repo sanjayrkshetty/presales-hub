@@ -49,7 +49,7 @@ class MemoryChunk(Base):
     # proposal / approval / sme / customer / solution / delivery / audit
     source_type = Column(Text, nullable=False)
     # proposal / approval / audit_log / document / stakeholder / opportunity
-    source_id = Column(String(36), nullable=False, index=True)
+    source_id = Column(String(255), nullable=False, index=True)
     source_version = Column(Integer, default=1, nullable=False)
 
     # Content
