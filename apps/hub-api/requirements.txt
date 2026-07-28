@@ -37,7 +37,12 @@ slowapi>=0.1.9
 
 # Observability
 prometheus-client>=0.20.0
+langfuse>=2.0.0          # optional LLM/RAG observability
 
 # Test dependencies
 pytest>=8
 pytest-asyncio>=0.24
+
+# Session 3 — scrubbed RAG + docx
+python-docx>=1.1.0
+sentence-transformers>=3.0.0  # optional at runtime; factory falls back to hash

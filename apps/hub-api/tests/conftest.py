@@ -40,6 +40,18 @@ def force_mock_llm_provider():
     cfg.LLM_PROVIDER = orig
 
 
+
+@pytest.fixture(autouse=True)
+def force_hash_embeddings(monkeypatch):
+    """CI/tests: avoid downloading sentence-transformers / torch."""
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "hash")
+    import memory_engine.config as mem_cfg
+    monkeypatch.setattr(mem_cfg, "EMBEDDING_PROVIDER", "hash", raising=False)
+    from memory_engine.embeddings.factory import get_embedding_provider
+    get_embedding_provider.cache_clear()
+    yield
+    get_embedding_provider.cache_clear()
+
 @pytest.fixture(autouse=True)
 def reset_db():
     """Drop and recreate all tables before each test for full isolation."""

@@ -2,7 +2,8 @@ import os
 import json
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi.responses import Response
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -20,6 +21,16 @@ class GenerateRequest(BaseModel):
 
 class HealthScoreRequest(BaseModel):
     proposal_id: str
+
+
+class GenerateDocxRequest(BaseModel):
+    brief: str = Field("", description="Optional drafting brief (will be scrubbed before Groq)")
+    bu: str = Field("dfir", description="Content pack filter: dfir|vapt|grc|shared")
+    sections: list[str] | None = None
+    as_json: bool = Field(
+        False,
+        description="If true, return JSON metadata + base64 docx instead of binary download",
+    )
 
 
 @router.post("/health-score")
@@ -92,3 +103,48 @@ async def generate_proposal(req: GenerateRequest, db: Session = Depends(get_db),
             return resp.json()
     except httpx.ConnectError:
         raise HTTPException(503, "Proposal engine unavailable")
+
+
+@router.post("/proposals/{proposal_id}/generate-docx")
+async def generate_docx(
+    proposal_id: str,
+    req: GenerateDocxRequest,
+    db: Session = Depends(get_db),
+    _authz=require_permission("copilot:use"),
+):
+    """
+    War-room Generate → editable .docx grounded on scrubbed DFIR RAG.
+
+    Chat: Groq on scrubbed text only. Embeddings: local MiniLM.
+    If Groq is unavailable, returns a retrieval-grounded template docx.
+    """
+    import base64
+    from memory_engine.generate_docx import generate_proposal_docx
+
+    try:
+        docx_bytes, meta = await generate_proposal_docx(
+            db,
+            proposal_id,
+            brief=req.brief,
+            bu=req.bu,
+            sections=req.sections,
+        )
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+    if req.as_json:
+        return {
+            **meta,
+            "docx_base64": base64.b64encode(docx_bytes).decode("ascii"),
+            "filename": f"proposal-{proposal_id[:8]}-draft.docx",
+        }
+
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition": f'attachment; filename="proposal-{proposal_id[:8]}-draft.docx"',
+            "X-Generate-Mode": meta.get("mode", ""),
+            "X-Retrieved-Chunks": str(meta.get("retrieved_chunks", 0)),
+        },
+    )
