@@ -34,3 +34,7 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Local proposal corpus (never commit raw/scrubbed trees)
+corpus/
+
