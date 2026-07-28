@@ -62,7 +62,8 @@ Pricing "understanding patterns" means structural/commercial section patterns fr
 ## Indexing stack
 
 - Store embeddings in **Postgres + pgvector** (same app DB).
-- Embed with local Ollama embedding model.
+- Embed with local `sentence-transformers/all-MiniLM-L6-v2` (not Ollama for v1).
+- Chat/Generate uses Groq on **scrubbed** text only; template docx fallback if Groq is down.
 - Fix known pgvector session poison / CAST issues before relying on Generate in demos (`docs/DECISIONS.md` session 2).
 
 ---

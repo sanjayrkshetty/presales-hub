@@ -2,10 +2,11 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { copilotApi } from "@/lib/api/copilot";
+import { aiApi } from "@/lib/api/ai";
 import { GroundingCitations } from "./GroundingCitations";
 import { ConfidenceBar } from "./ConfidenceBar";
 import { Spinner } from "@/components/ui/Spinner";
-import { Zap } from "lucide-react";
+import { Zap, FileDown } from "lucide-react";
 
 function resultText(result: Record<string, unknown>): string {
   if (typeof result.content === "string") return result.content;
@@ -17,9 +18,34 @@ function resultText(result: Record<string, unknown>): string {
 export function DraftAssist({ initialProposalId = "" }: { initialProposalId?: string } = {}) {
   const [proposalId, setProposalId] = useState(initialProposalId);
   const [section, setSection] = useState("executive_summary");
+  const [brief, setBrief] = useState("");
+  const [docxMeta, setDocxMeta] = useState<{ mode?: string; retrieved_chunks?: number; filename?: string } | null>(null);
 
   const draft = useMutation({
     mutationFn: () => copilotApi.draft(proposalId, section),
+  });
+
+  const generateDocx = useMutation({
+    mutationFn: () => aiApi.generateDocx(proposalId, { brief, bu: "dfir" }),
+    onSuccess: (data) => {
+      setDocxMeta({
+        mode: data.mode,
+        retrieved_chunks: data.retrieved_chunks,
+        filename: data.filename,
+      });
+      const bin = atob(data.docx_base64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const blob = new Blob([bytes], {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.filename || "proposal-draft.docx";
+      a.click();
+      URL.revokeObjectURL(url);
+    },
   });
 
   const result = draft.data;
@@ -33,7 +59,7 @@ export function DraftAssist({ initialProposalId = "" }: { initialProposalId?: st
             <input
               value={proposalId}
               onChange={(e) => setProposalId(e.target.value)}
-              placeholder="opp_…"
+              placeholder="proposal id"
               className="bg-bg-tertiary border border-border rounded px-2 py-1.5 text-xs font-mono text-text-primary placeholder:text-text-muted outline-none focus:border-accent/50 transition-colors"
             />
           </div>
@@ -50,14 +76,42 @@ export function DraftAssist({ initialProposalId = "" }: { initialProposalId?: st
             </select>
           </div>
         </div>
-        <button
-          onClick={() => draft.mutate()}
-          disabled={!proposalId || draft.isPending}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-accent/10 border border-accent/30 text-accent text-xs font-sans font-semibold hover:bg-accent/20 transition-colors disabled:opacity-50 self-start"
-        >
-          {draft.isPending ? <Spinner size="sm" /> : <Zap size={12} />}
-          Generate Draft
-        </button>
+        <div className="flex flex-col gap-1">
+          <label className="text-2xs text-text-muted font-sans uppercase tracking-widest">Generate brief (scrubbed before cloud)</label>
+          <textarea
+            value={brief}
+            onChange={(e) => setBrief(e.target.value)}
+            rows={2}
+            placeholder="Optional DFIR scope notes - no client names"
+            className="bg-bg-tertiary border border-border rounded px-2 py-1.5 text-xs font-sans text-text-primary placeholder:text-text-muted outline-none focus:border-accent/50 transition-colors resize-none"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => draft.mutate()}
+            disabled={!proposalId || draft.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-accent/10 border border-accent/30 text-accent text-xs font-sans font-semibold hover:bg-accent/20 transition-colors disabled:opacity-50 self-start"
+          >
+            {draft.isPending ? <Spinner size="sm" /> : <Zap size={12} />}
+            Generate Draft
+          </button>
+          <button
+            onClick={() => generateDocx.mutate()}
+            disabled={!proposalId || generateDocx.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-500/10 border border-teal-500/30 text-teal-300 text-xs font-sans font-semibold hover:bg-teal-500/20 transition-colors disabled:opacity-50 self-start"
+          >
+            {generateDocx.isPending ? <Spinner size="sm" /> : <FileDown size={12} />}
+            Generate .docx
+          </button>
+        </div>
+        {docxMeta && (
+          <p className="text-2xs text-text-muted font-mono">
+            docx {docxMeta.filename} · mode={docxMeta.mode} · chunks={docxMeta.retrieved_chunks ?? 0}
+          </p>
+        )}
+        {generateDocx.isError && (
+          <p className="text-2xs text-danger font-sans">Generate failed - check API / corpus ingest.</p>
+        )}
       </div>
 
       {result && (

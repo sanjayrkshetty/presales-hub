@@ -48,6 +48,8 @@ jobs:
           TEMPORAL_HOST: localhost:7233
           SECRET_KEY: ci-test-secret-key-not-for-prod
           ENVIRONMENT: development
+          EMBEDDING_PROVIDER: hash
+          LLM_PROVIDER: mock
         run: python -m pytest tests/ -x -q --tb=short
       - name: Upload coverage
         if: always()

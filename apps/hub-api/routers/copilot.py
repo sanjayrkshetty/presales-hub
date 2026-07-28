@@ -300,12 +300,13 @@ def list_prompts():
 @router.get("/status")
 def copilot_status():
     """Copilot engine health: provider config, registered prompts, active sessions."""
-    from copilot_engine.config import LLM_PROVIDER, CLAUDE_API_KEY, OPENAI_API_KEY
-    provider_configured = bool(CLAUDE_API_KEY or OPENAI_API_KEY)
+    from copilot_engine.config import LLM_PROVIDER, CLAUDE_API_KEY, OPENAI_API_KEY, GROQ_API_KEY
+    provider_configured = bool(GROQ_API_KEY or CLAUDE_API_KEY or OPENAI_API_KEY)
     return {
         "status": "ok",
         "provider": LLM_PROVIDER,
         "provider_configured": provider_configured,
+        "groq_configured": bool(GROQ_API_KEY),
         "registered_prompts": prompt_registry.count(),
         "active_sessions": session_store.count(),
     }

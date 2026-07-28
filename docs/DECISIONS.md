@@ -21,11 +21,13 @@
 - ~10 months of Word proposals; scrub/forget requirement; laptop (12GB RAM / 6GB GPU).
 - Fine-tune only later if structure/tone still fails with good retrieval.
 
-## D-004 - Inference: Ollama on laptop
+## D-004 - Inference: Groq chat + local MiniLM embeddings (v1)
 
-- Chat: ~8B Q4 (e.g. Qwen2.5 / Llama 3.1 class).
-- Embeddings: `nomic-embed-text` (or equivalent local embed model).
-- Cloud LLM only for **scrubbed** text if local quality is unacceptable.
+- **Chat / Generate:** Groq cloud API on **scrubbed** text + retrieved scrubbed chunks only (not Ollama chat).
+- **Embeddings:** local `sentence-transformers/all-MiniLM-L6-v2` (CPU-friendly, ~12GB RAM laptop).
+- **Fallback:** if Groq unavailable, still emit a retrieval-grounded template `.docx`.
+- **Secrets:** `GROQ_API_KEY` via env only (`.env` gitignored). Never commit keys.
+- Ollama remains a possible later local-chat option; not the v1 default.
 
 ## D-005 - Database: Postgres + pgvector
 

@@ -53,6 +53,12 @@ class SearchRequest(BaseModel):
     deduplicate_sources: bool = False
 
 
+class CorpusIngestRequest(BaseModel):
+    """Ingest scrubbed corpus files. Never point this at raw/unscrubbed trees."""
+    source_dir: Optional[str] = None  # defaults to corpus/scrubbed + seed/scrubbed_demo
+    bu: str = "dfir"
+
+
 # ── Indexing endpoints ─────────────────────────────────────────────────────────
 
 @router.post("/index/proposal/{proposal_id}")
@@ -94,6 +100,36 @@ def index_sme(stakeholder_id: str, db: Session = Depends(get_db), _authz=require
     if "error" in result:
         raise HTTPException(404, result["error"])
     return result
+
+
+@router.post("/corpus/ingest")
+def ingest_corpus(req: CorpusIngestRequest, db: Session = Depends(get_db), _authz=require_permission("memory:write")):
+    """
+    Index scrubbed DFIR (or other BU) corpus into pgvector memory.
+    Reads corpus/scrubbed (gitignored) and/or seed/scrubbed_demo.
+    Applies a last-pass scrub before embedding. Never commit raw proposals.
+    """
+    from memory_engine.ingestion.corpus_ingester import ingest_scrubbed_corpus
+
+    result = ingest_scrubbed_corpus(db, source_dir=req.source_dir, bu=req.bu)
+    if result.get("error") and result.get("indexed", 0) == 0:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@router.post("/scrub")
+def scrub_preview(payload: dict, _authz=require_permission("memory:write")):
+    """Preview scrub replacements on text (does not persist)."""
+    from memory_engine.scrub.scrubber import scrub_text
+
+    text = payload.get("text") or ""
+    result = scrub_text(text)
+    return {
+        "text": result.text,
+        "replacements": result.replacements,
+        "flags": result.flags,
+        "changed": result.changed,
+    }
 
 
 # ── Search endpoints ───────────────────────────────────────────────────────────

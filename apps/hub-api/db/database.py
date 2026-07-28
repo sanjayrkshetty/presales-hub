@@ -1,9 +1,13 @@
 import os
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load repo-root .env then local overrides (Langfuse/Groq keys live at repo root).
+_ROOT = Path(__file__).resolve().parents[3]
+load_dotenv(_ROOT / ".env", override=False)
+load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=True)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./presales_hub.db")
 
