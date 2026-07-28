@@ -13,6 +13,24 @@ TASK_QUEUE = "presales-hub"
 TERMINAL_STAGES = frozenset({"closed_won", "closed_lost"})
 PARALLEL_REVIEW_STAGES = frozenset({"technical_review", "security_review", "delivery_review"})
 
+# Mirror of models.proposal.TRANSITIONS — kept here so workflow sandbox stays free of ORM.
+STAGE_TRANSITIONS: dict[str, list[str]] = {
+    "intake":            ["qualification"],
+    "qualification":     ["sme_assignment", "closed_lost"],
+    "sme_assignment":    ["drafting", "closed_lost"],
+    "drafting":          ["technical_review", "security_review", "delivery_review"],
+    "technical_review":  ["finance_review", "drafting"],
+    "security_review":   ["finance_review", "drafting"],
+    "delivery_review":   ["finance_review", "drafting"],
+    "finance_review":    ["legal_review", "approval"],
+    "legal_review":      ["approval"],
+    "approval":          ["submission", "drafting"],
+    "submission":        ["client_followup"],
+    "client_followup":   ["closed_won", "closed_lost"],
+    "closed_won":        [],
+    "closed_lost":       [],
+}
+
 
 # ── Workflow inputs ────────────────────────────────────────────────────────────
 

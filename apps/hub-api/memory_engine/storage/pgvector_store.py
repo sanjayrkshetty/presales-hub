@@ -62,11 +62,11 @@ class PgVectorStore(VectorStore):
             raw_sql = """
                 SELECT chunk_id, source_id, source_type, memory_type, section,
                        content, metadata_json, embedding_model,
-                       1 - (embedding <=> :vec::vector) AS score
+                       1 - (embedding <=> CAST(:vec AS vector)) AS score
                 FROM memory_chunks
                 WHERE is_active = true
                 {type_filter}
-                ORDER BY embedding <=> :vec::vector
+                ORDER BY embedding <=> CAST(:vec AS vector)
                 LIMIT :top_k
             """.format(
                 type_filter="AND memory_type = :memory_type" if memory_type else ""
@@ -96,6 +96,11 @@ class PgVectorStore(VectorStore):
                 ))
             return results
         except Exception as exc:
+            # Failed SQL in a transaction poisons the session; rollback before fallback.
+            try:
+                self._db.rollback()
+            except Exception:
+                pass
             logger.warning("pgvector search failed, falling back to SQLite: %s", exc)
             return self._sqlite_fallback.search(
                 query_embedding, top_k, memory_type, metadata_filter
