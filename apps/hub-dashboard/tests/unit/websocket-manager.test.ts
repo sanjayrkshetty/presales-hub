@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useRealtimeStore } from "@/lib/store/realtime";
+import { useAuthStore } from "@/lib/auth/session";
 import { MockWebSocket } from "../setup";
 
 async function importHook() {
@@ -12,6 +13,19 @@ beforeEach(() => {
   MockWebSocket.reset();
   useRealtimeStore.getState().clearLog();
   useRealtimeStore.setState({ channelStates: {}, connectionState: "disconnected" });
+  // Hook connects only when authenticated (post auth-gate fix).
+  useAuthStore.setState({
+    accessToken: "test-token",
+    user: {
+      id: "u1",
+      email: "test@example.com",
+      full_name: "Test User",
+      tenant_id: "t1",
+      roles: ["presales_lead"],
+      permissions: [],
+    },
+    isLoading: false,
+  });
   vi.useFakeTimers();
 });
 
@@ -19,6 +33,7 @@ afterEach(() => {
   // clearAllTimers stops the setInterval without running it infinitely
   vi.clearAllTimers();
   vi.useRealTimers();
+  useAuthStore.getState().clearSession();
 });
 
 describe("useWebSocketManager — socket lifecycle", () => {
@@ -64,7 +79,7 @@ describe("useWebSocketManager — socket lifecycle", () => {
     act(() => {
       MockWebSocket._instances[0].simulateOpen();
     });
-    const ch = MockWebSocket._instances[0].url.replace("ws://localhost:8003", "");
+    const ch = MockWebSocket._instances[0].url.replace("ws://localhost:8003", "").split("?")[0];
     const channelStates = useRealtimeStore.getState().channelStates;
     expect(channelStates[ch]).toBe("open");
   });
