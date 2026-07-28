@@ -24,6 +24,7 @@ from copilot_engine.grounding.validator import validate_grounding
 from copilot_engine.safety.guardrails import validate_input, validate_output
 from copilot_engine.evaluators.response_eval import evaluate_response
 from memory_engine.storage.base import SearchResult
+from telemetry.langfuse_client import observe_pipeline, log_generation, log_span, update_observation
 
 logger = logging.getLogger("copilot_engine.runner")
 
@@ -113,60 +114,121 @@ class CopilotRunner:
         system_prompt = prompt.render_system(**prompt_vars)
         user_prompt = prompt.render_user(**prompt_vars)
 
-        # 3. LLM call
-        llm_response: LLMResponse = await self._provider.complete(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            max_tokens=max_tokens,
-        )
-
-        # 4. Output safety
-        output_safety = validate_output(llm_response.content)
-        if output_safety.violations:
-            safety_warnings.extend(output_safety.violations)
-            logger.warning("Output safety warnings: %s", output_safety.violations)
-
-        # 5. Grounding validation
-        grounding = validate_grounding(
-            response=llm_response.content,
-            context_chunks=chunks,
-            require_citations=False,
-        )
-
-        # 6. Response evaluation
-        evaluation = evaluate_response(
-            response=llm_response.content,
-            expected_json_fields=expected_json_fields,
-        )
-
-        total_latency = (time.monotonic() - t0) * 1000
-
-        logger.info(
-            "Copilot run complete",
-            extra={
-                "prompt": prompt_name,
-                "provider": llm_response.provider,
-                "model": llm_response.model,
-                "input_tokens": llm_response.input_tokens,
-                "output_tokens": llm_response.output_tokens,
-                "latency_ms": round(total_latency, 1),
-                "grounding_score": grounding.grounding_score,
-                "quality_score": evaluation.quality_score,
-                "chunks": len(chunks),
+        with observe_pipeline(
+            "run-copilot-assistant",
+            as_type="chain",
+            input={"prompt_name": prompt_name, "query_len": len(user_query or "")},
+            metadata={
+                "prompt_name": prompt_name,
+                "prompt_version": prompt.version,
+                "provider": self._provider.provider_name,
+                "model": self._provider.model_name,
+                "retrieved_chunks": len(chunks),
             },
-        )
+            tags=["copilot", prompt_name],
+            feature="copilot",
+        ) as lf:
+            log_span(
+                lf,
+                name="retrieve-context",
+                as_type="retriever",
+                output_data={"chunk_count": len(chunks)},
+            )
 
-        return CopilotResponse(
-            content=llm_response.content,
-            provider=llm_response.provider,
-            model=llm_response.model,
-            prompt_name=prompt_name,
-            prompt_version=prompt.version,
-            input_tokens=llm_response.input_tokens,
-            output_tokens=llm_response.output_tokens,
-            latency_ms=total_latency,
-            grounding=grounding.to_dict(),
-            evaluation=evaluation.to_dict(),
-            safety_warnings=safety_warnings,
-            retrieved_chunks=len(chunks),
-        )
+            # 3. LLM call
+            llm_response: LLMResponse = await self._provider.complete(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=max_tokens,
+            )
+            log_generation(
+                lf,
+                name="generate-response",
+                model=llm_response.model,
+                input_text=f"SYSTEM:\n{system_prompt}\n\nUSER:\n{user_prompt}",
+                output_text=llm_response.content,
+                provider=llm_response.provider,
+                input_tokens=llm_response.input_tokens,
+                output_tokens=llm_response.output_tokens,
+                latency_ms=llm_response.latency_ms,
+                metadata={"prompt_name": prompt_name, "prompt_version": prompt.version},
+            )
+
+            # 4. Output safety
+            output_safety = validate_output(llm_response.content)
+            if output_safety.violations:
+                safety_warnings.extend(output_safety.violations)
+                logger.warning("Output safety warnings: %s", output_safety.violations)
+            log_span(
+                lf,
+                name="scrub-output",
+                as_type="guardrail",
+                output_data={"warnings": list(output_safety.violations)},
+            )
+
+            # 5. Grounding validation
+            grounding = validate_grounding(
+                response=llm_response.content,
+                context_chunks=chunks,
+                require_citations=False,
+            )
+            log_span(
+                lf,
+                name="evaluate-grounding",
+                as_type="evaluator",
+                output_data=grounding.to_dict(),
+            )
+
+            # 6. Response evaluation
+            evaluation = evaluate_response(
+                response=llm_response.content,
+                expected_json_fields=expected_json_fields,
+            )
+            log_span(
+                lf,
+                name="evaluate-quality",
+                as_type="evaluator",
+                output_data=evaluation.to_dict(),
+                metadata={"safety_warnings": safety_warnings},
+            )
+
+            total_latency = (time.monotonic() - t0) * 1000
+            update_observation(
+                lf,
+                output={
+                    "provider": llm_response.provider,
+                    "model": llm_response.model,
+                    "grounding_score": grounding.grounding_score,
+                    "quality_score": evaluation.quality_score,
+                },
+            )
+
+            logger.info(
+                "Copilot run complete",
+                extra={
+                    "prompt": prompt_name,
+                    "provider": llm_response.provider,
+                    "model": llm_response.model,
+                    "input_tokens": llm_response.input_tokens,
+                    "output_tokens": llm_response.output_tokens,
+                    "latency_ms": round(total_latency, 1),
+                    "grounding_score": grounding.grounding_score,
+                    "quality_score": evaluation.quality_score,
+                    "chunks": len(chunks),
+                },
+            )
+
+            return CopilotResponse(
+                content=llm_response.content,
+                provider=llm_response.provider,
+                model=llm_response.model,
+                prompt_name=prompt_name,
+                prompt_version=prompt.version,
+                input_tokens=llm_response.input_tokens,
+                output_tokens=llm_response.output_tokens,
+                latency_ms=total_latency,
+                grounding=grounding.to_dict(),
+                evaluation=evaluation.to_dict(),
+                safety_warnings=safety_warnings,
+                retrieved_chunks=len(chunks),
+            )

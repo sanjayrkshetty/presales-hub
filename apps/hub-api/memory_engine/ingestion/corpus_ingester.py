@@ -19,7 +19,7 @@ from memory_engine.chunking.splitter import DocumentChunker, RawChunk
 from memory_engine.indexing.indexer import MemoryIndexer
 from memory_engine.scrub.scrubber import scrub_text
 from memory_engine.storage.factory import get_vector_store
-from telemetry.langfuse_client import langfuse_trace, log_span
+from telemetry.langfuse_client import observe_pipeline, log_span, update_observation
 
 logger = logging.getLogger("memory_engine.ingestion.corpus")
 
@@ -135,9 +135,13 @@ def ingest_scrubbed_corpus(
             "message": "No indexable scrubbed content found",
         }
 
-    with langfuse_trace(
-        "memory.corpus_ingest",
-        metadata={"bu": bu, "memory_type": memory_type, "files": files_seen},
+    with observe_pipeline(
+        "ingest-scrubbed-corpus",
+        as_type="chain",
+        input={"bu": bu, "memory_type": memory_type, "files": files_seen},
+        metadata={"bu": bu, "memory_type": memory_type},
+        tags=["corpus", "rag", bu],
+        feature="corpus-ingest",
     ) as lf:
         store = get_vector_store(db)
         indexer = MemoryIndexer(store)
@@ -165,10 +169,12 @@ def ingest_scrubbed_corpus(
         }
         log_span(
             lf,
-            name="corpus.index",
+            name="index-chunks",
+            as_type="embedding",
             input_data={"dirs": [str(d) for d in dirs], "bu": bu},
             output_data=result,
         )
+        update_observation(lf, output=result)
         logger.info(
             "Corpus ingest bu=%s files=%s chunks=%s",
             bu,

@@ -26,7 +26,7 @@ from memory_engine.retrieval.retriever import MemoryRetriever
 from memory_engine.storage.factory import get_vector_store
 from copilot_engine.config import GROQ_API_KEY
 from telemetry.context import set_proposal_id
-from telemetry.langfuse_client import langfuse_trace, log_generation, log_span
+from telemetry.langfuse_client import observe_pipeline, log_generation, log_span, update_observation
 
 logger = logging.getLogger("memory_engine.generate_docx")
 
@@ -103,9 +103,13 @@ async def generate_proposal_docx(
     """Returns (docx_bytes, meta)."""
     set_proposal_id(proposal_id)
 
-    with langfuse_trace(
-        "warroom.generate_docx",
+    with observe_pipeline(
+        "generate-proposal-docx",
+        as_type="chain",
+        input={"proposal_id": proposal_id, "bu": bu, "brief_len": len(brief or "")},
         metadata={"proposal_id": proposal_id, "bu": bu},
+        tags=["war-room", "rag", "docx"],
+        feature="generate-docx",
     ) as lf:
         proposal = db.scalar(select(Proposal).where(Proposal.id == proposal_id))
         if not proposal:
@@ -131,11 +135,13 @@ async def generate_proposal_docx(
 
         log_span(
             lf,
-            name="rag.retrieve",
+            name="retrieve-context",
+            as_type="retriever",
             input_data={"query": query[:200], "bu": bu},
             output_data={
                 "chunk_count": len(chunks),
                 "top_scores": [round(c.score, 4) for c in chunks[:5]],
+                "sources": [c.source_id for c in chunks[:5]],
             },
             metadata={"memory_type": "proposal"},
         )
@@ -148,12 +154,13 @@ async def generate_proposal_docx(
 
         log_span(
             lf,
-            name="scrub.pass",
+            name="scrub-pii",
+            as_type="guardrail",
             input_data={"brief_len": len(brief or ""), "context_len": len(context_block)},
             output_data={
                 "brief_flags": scrubbed_brief.flags,
                 "context_flags": context_scrubbed.flags,
-                "replacements": scrubbed_brief.replacements + context_scrubbed.replacements,
+                "replacement_count": scrubbed_brief.replacements + context_scrubbed.replacements,
             },
         )
 
@@ -186,7 +193,7 @@ async def generate_proposal_docx(
                 model_name = provider.model_name
                 log_generation(
                     lf,
-                    name="groq.generate_docx",
+                    name="generate-response",
                     model=model_name,
                     input_text=f"SYSTEM:\n{system}\n\nUSER:\n{user}",
                     output_text=resp.content,
@@ -202,7 +209,7 @@ async def generate_proposal_docx(
                 mode = "template_fallback"
                 log_span(
                     lf,
-                    name="generate.fallback",
+                    name="generate-fallback",
                     output_data={"reason": str(exc)[:300]},
                     metadata={"mode": mode},
                 )
@@ -210,7 +217,7 @@ async def generate_proposal_docx(
             section_map = _template_from_chunks(chunks, scrubbed_brief.text)
             log_span(
                 lf,
-                name="generate.fallback",
+                name="generate-fallback",
                 output_data={"reason": "GROQ_API_KEY unset"},
                 metadata={"mode": mode},
             )
@@ -234,7 +241,17 @@ async def generate_proposal_docx(
         }
         log_span(
             lf,
-            name="docx.build",
+            name="build-docx",
+            as_type="span",
             output_data={"bytes": len(docx_bytes), "sections": list(section_map.keys()), "mode": mode},
+        )
+        update_observation(
+            lf,
+            output={
+                "mode": mode,
+                "sections": list(section_map.keys()),
+                "retrieved_chunks": len(chunks),
+                "bytes": len(docx_bytes),
+            },
         )
         return docx_bytes, meta
