@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from db.database import get_db
+from lib.dependencies import require_permission
 from events.bus import publish
 from events.schema import ApprovalDecisionEvent
 from models import AuditLog, ActivityFeed, Stakeholder
@@ -22,7 +23,7 @@ class DecisionRequest(BaseModel):
 
 
 @router.post("/{approval_id}/decide")
-def decide(approval_id: str, req: DecisionRequest, db: Session = Depends(get_db)):
+def decide(approval_id: str, req: DecisionRequest, db: Session = Depends(get_db), _authz=require_permission("approval:approve")):
     if req.actor_id:
         set_actor_id(req.actor_id)
     if req.status not in ("approved", "rejected", "escalated", "bypassed"):
