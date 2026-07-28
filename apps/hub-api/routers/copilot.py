@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from db.database import get_db
+from lib.dependencies import require_permission
 from copilot_engine.providers.mock_provider import MockLLMProvider
 
 # Import all prompt modules to populate registry at startup
@@ -88,7 +89,7 @@ def _get_provider():
 # ── RFP Analysis ──────────────────────────────────────────────────────────────
 
 @router.post("/rfp/analyze")
-async def analyze_rfp(req: RfpAnalyzeRequest, db: Session = Depends(get_db)):
+async def analyze_rfp(req: RfpAnalyzeRequest, db: Session = Depends(get_db), _authz=require_permission("copilot:use")):
     """Analyze an RFP document and extract structured intelligence."""
     from copilot_engine.assistants.rfp_analyst import RfpAnalyst
     analyst = RfpAnalyst(db, _get_provider())
@@ -103,6 +104,7 @@ async def draft_section(
     proposal_id: str,
     req: DraftSectionRequest,
     db: Session = Depends(get_db),
+    _authz=require_permission("copilot:use"),
 ):
     """Draft a proposal section grounded in historical proposals."""
     from copilot_engine.assistants.proposal_drafter import ProposalDrafter
@@ -116,7 +118,7 @@ async def draft_section(
 
 
 @router.post("/proposals/{proposal_id}/brief")
-async def executive_brief(proposal_id: str, db: Session = Depends(get_db)):
+async def executive_brief(proposal_id: str, db: Session = Depends(get_db), _authz=require_permission("copilot:use")):
     """Generate a VP-ready executive briefing for the proposal."""
     from copilot_engine.assistants.executive_briefing import ExecutiveBriefingCopilot
     copilot = ExecutiveBriefingCopilot(db, _get_provider())
@@ -125,7 +127,7 @@ async def executive_brief(proposal_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/proposals/{proposal_id}/risks")
-async def explain_risks(proposal_id: str, db: Session = Depends(get_db)):
+async def explain_risks(proposal_id: str, db: Session = Depends(get_db), _authz=require_permission("copilot:use")):
     """Explain proposal risks in plain language with mitigations."""
     from copilot_engine.assistants.executive_briefing import ExecutiveBriefingCopilot
     copilot = ExecutiveBriefingCopilot(db, _get_provider())
@@ -138,6 +140,7 @@ async def compliance_gap(
     proposal_id: str,
     req: ComplianceGapRequest,
     db: Session = Depends(get_db),
+    _authz=require_permission("copilot:use"),
 ):
     """Identify compliance gaps between RFP requirements and proposal content."""
     from copilot_engine.context_builders.proposal_context import ProposalContextBuilder
@@ -177,6 +180,7 @@ async def sme_recommend(
     proposal_id: str,
     req: SmeRecommendRequest,
     db: Session = Depends(get_db),
+    _authz=require_permission("copilot:use"),
 ):
     """Explain SME staffing recommendations for this proposal."""
     from memory_engine.knowledge.sme_memory import SmeMemory
@@ -214,6 +218,7 @@ async def workflow_guide(
     proposal_id: str,
     req: WorkflowGuideRequest,
     db: Session = Depends(get_db),
+    _authz=require_permission("copilot:use"),
 ):
     """Get workflow navigation guidance for the current proposal state."""
     from copilot_engine.context_builders.proposal_context import ProposalContextBuilder
@@ -246,7 +251,7 @@ async def workflow_guide(
 # ── Approval Assistant ─────────────────────────────────────────────────────────
 
 @router.post("/approvals/{approval_id}/explain")
-async def explain_approval(approval_id: str, db: Session = Depends(get_db)):
+async def explain_approval(approval_id: str, db: Session = Depends(get_db), _authz=require_permission("copilot:use")):
     """Explain an approval decision with anomaly detection and historical comparison."""
     from copilot_engine.assistants.approval_assistant import ApprovalAssistant
     assistant = ApprovalAssistant(db, _get_provider())
@@ -257,7 +262,7 @@ async def explain_approval(approval_id: str, db: Session = Depends(get_db)):
 # ── Solution Architecture ─────────────────────────────────────────────────────
 
 @router.post("/solutions/suggest")
-async def suggest_solution(req: SolutionSuggestRequest, db: Session = Depends(get_db)):
+async def suggest_solution(req: SolutionSuggestRequest, db: Session = Depends(get_db), _authz=require_permission("copilot:use")):
     """Suggest solution architecture approaches grounded in historical patterns."""
     from copilot_engine.retrieval.context_retriever import ContextRetriever
     from copilot_engine.orchestration.copilot_runner import CopilotRunner

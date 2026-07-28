@@ -5,6 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from db.database import get_db
+from lib.dependencies import require_permission
+from temporal.client import get_temporal_client
+from temporal.schemas import PARALLEL_REVIEW_STAGES
 from events.bus import publish
 from events.schema import ApprovalDecisionEvent
 from models import AuditLog, ActivityFeed, Stakeholder
@@ -22,7 +25,7 @@ class DecisionRequest(BaseModel):
 
 
 @router.post("/{approval_id}/decide")
-def decide(approval_id: str, req: DecisionRequest, db: Session = Depends(get_db)):
+async def decide(approval_id: str, req: DecisionRequest, db: Session = Depends(get_db), _authz=require_permission("approval:approve")):
     if req.actor_id:
         set_actor_id(req.actor_id)
     if req.status not in ("approved", "rejected", "escalated", "bypassed"):
@@ -93,4 +96,23 @@ def decide(approval_id: str, req: DecisionRequest, db: Session = Depends(get_db)
         stage=approval.stage,
         status=req.status,
     ))
+
+    # Bridge review-stage decisions into ParallelReviewWorkflow (reuse workflows.py pattern).
+    if approval.stage in PARALLEL_REVIEW_STAGES:
+        client = await get_temporal_client()
+        if client is None:
+            raise HTTPException(503, "Temporal unavailable — approval saved but review workflow not signaled")
+        from temporal.workflows.approval import ParallelReviewWorkflow
+        handle = client.get_workflow_handle(f"parallel-review-{approval.proposal_id}")
+        try:
+            await handle.signal(
+                ParallelReviewWorkflow.submit_review,
+                args=[approval.stage, req.status, req.actor_id, req.decision_note],
+            )
+        except Exception as exc:
+            raise HTTPException(
+                503,
+                f"Approval saved but failed to signal parallel review workflow: {exc}",
+            )
+
     return {"approval_id": approval_id, "status": req.status}

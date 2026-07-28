@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from db.database import get_db
+from lib.dependencies import require_permission
 
 logger = logging.getLogger("routers.strategy")
 router = APIRouter(prefix="/api/strategy", tags=["strategy"])
@@ -61,7 +62,7 @@ def _to_dict(obj) -> Any:
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.post("/forecast")
-def get_forecast(req: ForecastRequest, db: Session = Depends(get_db)):
+def get_forecast(req: ForecastRequest, db: Session = Depends(get_db), _authz=require_permission("strategy:read")):
     """
     Weighted revenue forecast, confidence intervals, pipeline health,
     and quarter-close projection.
@@ -152,7 +153,7 @@ def get_dependencies(db: Session = Depends(get_db)):
 
 
 @router.post("/simulate")
-def run_simulation(req: SimulateRequest, db: Session = Depends(get_db)):
+def run_simulation(req: SimulateRequest, db: Session = Depends(get_db), _authz=require_permission("strategy:read")):
     """
     What-if scenario simulation. Does NOT mutate any production data.
     Returns projected impact on pipeline, capacity, and escalation risk.
