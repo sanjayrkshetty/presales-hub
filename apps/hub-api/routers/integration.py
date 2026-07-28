@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from db.database import get_db
+from lib.dependencies import require_permission
 import integration_fabric.adapters  # noqa: F401 — triggers @ConnectorRegistry.register for all 12 adapters
 
 router = APIRouter(prefix="/api/integration", tags=["integration"])
@@ -103,7 +104,7 @@ def sync_status(tenant_id: str = "default", db: Session = Depends(get_db)):
 
 
 @router.post("/sync/run")
-def run_sync(req: SyncRunRequest, db: Session = Depends(get_db)):
+def run_sync(req: SyncRunRequest, db: Session = Depends(get_db), _authz=require_permission("integration:write")):
     from integration_fabric.sync.proposal_crm import sync_proposals_to_crm
     from integration_fabric.sync.sla_slack import push_sla_breaches_to_slack
     from integration_fabric.sync.escalation_teams import push_escalations_to_teams
@@ -159,7 +160,7 @@ def list_webhooks(tenant_id: str = "default", db: Session = Depends(get_db)):
 
 
 @router.post("/webhooks", status_code=201)
-def create_webhook(req: WebhookCreateRequest, db: Session = Depends(get_db)):
+def create_webhook(req: WebhookCreateRequest, db: Session = Depends(get_db), _authz=require_permission("webhook:write")):
     from integration_fabric.webhooks.registry import create_subscription
 
     sub = create_subscription(
@@ -174,7 +175,7 @@ def create_webhook(req: WebhookCreateRequest, db: Session = Depends(get_db)):
 
 
 @router.delete("/webhooks/{subscription_id}")
-def delete_webhook(subscription_id: str, db: Session = Depends(get_db)):
+def delete_webhook(subscription_id: str, db: Session = Depends(get_db), _authz=require_permission("webhook:delete")):
     from integration_fabric.webhooks.registry import deactivate_subscription
 
     ok = deactivate_subscription(db, subscription_id)
@@ -256,7 +257,7 @@ def retry_dlq(tenant_id: str = "default", limit: int = 100, db: Session = Depend
 
 
 @router.post("/retry/dlq/{job_id}/requeue")
-def requeue_job(job_id: str, db: Session = Depends(get_db)):
+def requeue_job(job_id: str, db: Session = Depends(get_db), _authz=require_permission("integration:admin")):
     from integration_fabric.retry.queue import requeue_dlq_job
 
     ok = requeue_dlq_job(db, job_id)
@@ -290,7 +291,7 @@ def dashboard(tenant_id: str = "default", db: Session = Depends(get_db)):
 # ── Ingestion endpoint ─────────────────────────────────────────────────────────
 
 @router.post("/ingest/{pipeline_name}")
-def run_ingest(pipeline_name: str, req: IngestBody, db: Session = Depends(get_db)):
+def run_ingest(pipeline_name: str, req: IngestBody, db: Session = Depends(get_db), _authz=require_permission("integration:write")):
     from integration_fabric.ingestion.rfp_ingest import RFPIngestionPipeline
     from integration_fabric.ingestion.email_attachment import EmailAttachmentPipeline
     from integration_fabric.ingestion.crm_opportunity import CRMOpportunityPipeline

@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from db.database import get_db
+from lib.dependencies import require_permission
 from models import Proposal, Opportunity
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
@@ -22,7 +23,7 @@ class HealthScoreRequest(BaseModel):
 
 
 @router.post("/health-score")
-def compute_health_score(req: HealthScoreRequest, db: Session = Depends(get_db)):
+def compute_health_score(req: HealthScoreRequest, db: Session = Depends(get_db), _authz=require_permission("proposal:write")):
     proposal = db.scalar(
         select(Proposal)
         .where(Proposal.id == req.proposal_id)
@@ -69,7 +70,7 @@ def compute_health_score(req: HealthScoreRequest, db: Session = Depends(get_db))
 
 
 @router.post("/generate-proposal")
-async def generate_proposal(req: GenerateRequest, db: Session = Depends(get_db)):
+async def generate_proposal(req: GenerateRequest, db: Session = Depends(get_db), _authz=require_permission("copilot:use")):
     opp = db.scalar(
         select(Opportunity)
         .where(Opportunity.id == req.opportunity_id)
