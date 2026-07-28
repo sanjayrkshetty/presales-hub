@@ -25,9 +25,26 @@ _sla_mod.start = lambda: None
 
 # --- Import app and wire dependency override ---
 from db.database import Base, get_db  # noqa: E402
+from lib.dependencies import get_current_user  # noqa: E402
 from main import app  # noqa: E402
+from models.user import User  # noqa: E402
+
+
+def override_get_current_user() -> User:
+    """Bypass JWT for TestClient — routers mount with Depends(get_current_user)."""
+    return User(
+        id="test-user-id",
+        email="test@example.com",
+        hashed_password="not-used",
+        full_name="Test Admin",
+        tenant_id="default",
+        roles=["admin"],
+        is_active=True,
+    )
+
 
 app.dependency_overrides[get_db] = override_get_db
+app.dependency_overrides[get_current_user] = override_get_current_user
 
 
 @pytest.fixture(autouse=True)
