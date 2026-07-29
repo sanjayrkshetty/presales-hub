@@ -10,14 +10,11 @@ Capabilities:
 import logging
 from typing import Optional
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from models import Proposal, Opportunity
-from copilot_engine.orchestration.copilot_runner import CopilotRunner, CopilotResponse
-from copilot_engine.retrieval.context_retriever import ContextRetriever
-from copilot_engine.context_builders.proposal_context import ProposalContextBuilder
+from copilot_engine.orchestration.copilot_runner import CopilotResponse
 from copilot_engine.providers.base import LLMProvider
+from copilot_engine.graphs.draft_graph import run_section_draft_graph
 
 import copilot_engine.prompts.proposal_drafting  # noqa: F401
 
@@ -27,8 +24,7 @@ logger = logging.getLogger("copilot_engine.assistants.proposal_drafter")
 class ProposalDrafter:
     def __init__(self, db: Session, provider: Optional[LLMProvider] = None):
         self._db = db
-        self._runner = CopilotRunner(db, provider)
-        self._retriever = ContextRetriever(db)
+        self._provider = provider
 
     async def draft_section(
         self,
@@ -36,33 +32,31 @@ class ProposalDrafter:
         section: str,
         user_query: str = "",
     ) -> CopilotResponse:
-        """Draft a single proposal section grounded in similar historical proposals."""
-        # Build proposal context
-        ctx_builder = ProposalContextBuilder(self._db)
-        ctx = ctx_builder.build(proposal_id)
-
-        rfp_type = ctx.get("rfp_type") or ""
-        stage = ctx.get("stage") or ""
-
-        opp = ctx.get("opportunity") or {}
-        opportunity_name = opp.get("title") or "Unknown opportunity"
-        client_name = opp.get("client_id") or "Unknown client"
-
-        # Retrieve similar proposals for grounding
-        query = f"{section} {rfp_type} {user_query}".strip()
-        chunks = self._retriever.retrieve_for_proposal(query, rfp_type=rfp_type, top_k=6)
-        memory_context = ContextRetriever.format_as_context(chunks)
-
-        return await self._runner.run(
-            prompt_name="proposal_draft_section_v1",
-            prompt_vars={
-                "section": section,
-                "memory_context": memory_context,
-                "opportunity_name": opportunity_name,
-                "client_name": client_name,
-                "rfp_type": rfp_type,
-                "stage": stage,
-            },
+        """Draft a section using shared LangGraph (D-014)."""
+        result = await run_section_draft_graph(
+            self._db,
+            proposal_id=proposal_id,
+            section=section,
             user_query=user_query or f"Draft the {section} section",
-            context_chunks=chunks,
+            provider=self._provider,
+        )
+        meta = result.meta or {}
+        grounding = (meta.get("grounding") or {})
+        return CopilotResponse(
+            content=result.content,
+            provider=meta.get("provider", "none"),
+            model=meta.get("model", "none"),
+            prompt_name="proposal_draft_section_langgraph_v1",
+            prompt_version="v1",
+            input_tokens=int(meta.get("input_tokens", 0)),
+            output_tokens=int(meta.get("output_tokens", 0)),
+            latency_ms=float(meta.get("latency_ms", 0.0)),
+            grounding={"score": grounding.get("grounding_score", 0.0), **grounding},
+            evaluation={
+                "quality_score": grounding.get("grounding_score", 0.0),
+                "mode": meta.get("mode", ""),
+                "repair_count": meta.get("repair_count", 0),
+            },
+            safety_warnings=list(grounding.get("warnings", [])),
+            retrieved_chunks=int(meta.get("retrieved_chunks", len(result.chunks or []))),
         )

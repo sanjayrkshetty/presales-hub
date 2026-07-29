@@ -22,11 +22,9 @@ from sqlalchemy.orm import Session
 from models import Proposal, Opportunity
 from memory_engine.scrub.scrubber import scrub_text
 from memory_engine.docx_gen.builder import build_proposal_docx
-from memory_engine.retrieval.retriever import MemoryRetriever
-from memory_engine.storage.factory import get_vector_store
-from copilot_engine.config import GROQ_API_KEY
+from copilot_engine.graphs.draft_graph import run_draft_graph
 from telemetry.context import set_proposal_id
-from telemetry.langfuse_client import observe_pipeline, log_generation, log_span, update_observation
+from telemetry.langfuse_client import observe_pipeline, log_span, update_observation
 
 logger = logging.getLogger("memory_engine.generate_docx")
 
@@ -120,107 +118,21 @@ async def generate_proposal_docx(
         rfp_type = (opp.rfp_type if opp else None) or "DFIR"
 
         scrubbed_brief = scrub_text(brief or "")
-        query = f"{rfp_type} {scrubbed_brief.text} DFIR incident response proposal".strip()
-
-        store = get_vector_store(db)
-        retriever = MemoryRetriever(store)
-        chunks = retriever.retrieve(
-            query=query[:500],
-            top_k=8,
-            memory_type="proposal",
-            metadata_filter={"bu": bu} if bu else None,
-        )
-        if not chunks:
-            chunks = retriever.retrieve(query=query[:500], top_k=8, memory_type="proposal")
-
-        log_span(
-            lf,
-            name="retrieve-context",
-            as_type="retriever",
-            input_data={"query": query[:200], "bu": bu},
-            output_data={
-                "chunk_count": len(chunks),
-                "top_scores": [round(c.score, 4) for c in chunks[:5]],
-                "sources": [c.source_id for c in chunks[:5]],
-            },
-            metadata={"memory_type": "proposal"},
-        )
-
-        context_block = "\n\n".join(
-            f"[Source {i+1} | {c.section} | score={c.score:.3f}]\n{c.content[:700]}"
-            for i, c in enumerate(chunks)
-        ) or "No retrieved context."
-        context_scrubbed = scrub_text(context_block)
-
-        log_span(
-            lf,
-            name="scrub-pii",
-            as_type="guardrail",
-            input_data={"brief_len": len(brief or ""), "context_len": len(context_block)},
-            output_data={
-                "brief_flags": scrubbed_brief.flags,
-                "context_flags": context_scrubbed.flags,
-                "replacement_count": scrubbed_brief.replacements + context_scrubbed.replacements,
-            },
-        )
-
-        mode = "template_fallback"
-        provider_name = "none"
-        model_name = "none"
         wanted = sections or _DEFAULT_SECTIONS
-
-        if GROQ_API_KEY:
-            try:
-                from copilot_engine.providers.groq_provider import GroqProvider
-
-                provider = GroqProvider()
-                system = (
-                    "You draft cybersecurity DFIR pre-sales proposal sections. "
-                    "Use ONLY the scrubbed historical context. Do not invent client names, "
-                    "prices, or people. Output markdown with ## headings for: "
-                    + ", ".join(wanted)
-                )
-                user = (
-                    f"Opportunity: {title}\nRFP type: {rfp_type}\n"
-                    f"Brief (scrubbed): {scrubbed_brief.text or '(none)'}\n\n"
-                    f"Retrieved scrubbed context:\n{context_scrubbed.text}\n\n"
-                    "Write a complete draft with the requested section headings."
-                )
-                resp = await provider.complete(system, user, max_tokens=2000)
-                section_map = _split_sections(resp.content)
-                mode = "groq"
-                provider_name = provider.provider_name
-                model_name = provider.model_name
-                log_generation(
-                    lf,
-                    name="generate-response",
-                    model=model_name,
-                    input_text=f"SYSTEM:\n{system}\n\nUSER:\n{user}",
-                    output_text=resp.content,
-                    provider=provider_name,
-                    input_tokens=resp.input_tokens,
-                    output_tokens=resp.output_tokens,
-                    latency_ms=resp.latency_ms,
-                    metadata={"sections": list(section_map.keys())},
-                )
-            except Exception as exc:
-                logger.warning("Groq generate failed, using template fallback: %s", exc)
-                section_map = _template_from_chunks(chunks, scrubbed_brief.text)
-                mode = "template_fallback"
-                log_span(
-                    lf,
-                    name="generate-fallback",
-                    output_data={"reason": str(exc)[:300]},
-                    metadata={"mode": mode},
-                )
-        else:
-            section_map = _template_from_chunks(chunks, scrubbed_brief.text)
-            log_span(
-                lf,
-                name="generate-fallback",
-                output_data={"reason": "GROQ_API_KEY unset"},
-                metadata={"mode": mode},
-            )
+        draft = await run_draft_graph(
+            db,
+            proposal_id=proposal_id,
+            brief=scrubbed_brief.text,
+            user_query=scrubbed_brief.text,
+            bu=bu,
+            sections=wanted,
+            lf=lf,
+        )
+        section_map = draft.section_map
+        chunks = draft.chunks
+        mode = draft.meta.get("mode", "template_fallback")
+        provider_name = draft.meta.get("provider", "none")
+        model_name = draft.meta.get("model", "none")
 
         docx_bytes = build_proposal_docx(
             title=title,
@@ -234,10 +146,12 @@ async def generate_proposal_docx(
             "model": model_name,
             "retrieved_chunks": len(chunks),
             "bu": bu,
-            "scrub_flags": list(set(scrubbed_brief.flags + context_scrubbed.flags)),
+            "scrub_flags": list(set(scrubbed_brief.flags)),
             "sections": list(section_map.keys()),
             "bytes": len(docx_bytes),
             "langfuse": lf is not None,
+            "grounding": draft.meta.get("grounding", {}),
+            "repair_count": draft.meta.get("repair_count", 0),
         }
         log_span(
             lf,
