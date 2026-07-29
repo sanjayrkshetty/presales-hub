@@ -13,7 +13,7 @@ Instructions for Cursor / Claude / any coding agent. Humans: skim once; agents: 
 3. [`docs/CORPUS.md`](docs/CORPUS.md) - never commit real proposals
 4. [`ROADMAP.md`](ROADMAP.md) - Now / Next / Later
 
-Do **not** re-open settled decisions (RAG vs fine-tune, Qdrant, VA, Supabase Auth, Temporal removal) unless the user explicitly changes them.
+Do **not** re-open settled decisions (RAG vs fine-tune, Qdrant, VA, Supabase Auth, Temporal removal) unless the user explicitly changes them. LangGraph draft-only was reopened via D-014.
 
 ---
 
@@ -21,7 +21,7 @@ Do **not** re-open settled decisions (RAG vs fine-tune, Qdrant, VA, Supabase Aut
 
 - Minimal, reuse-first, no over-engineering.
 - Prefer wiring existing FastAPI / Temporal / memory_engine / copilot code over new frameworks.
-- No LangGraph / Qdrant / fine-tune pipelines unless Sanjay asks.
+- No Qdrant / fine-tune pipelines unless Sanjay asks. LangGraph is allowed **draft-only** (see D-014); Temporal stays lifecycle.
 - No unscrubbed client or employer data in the repo, commits, issues, or screenshots.
 - Demo data only in seeds and docs.
 

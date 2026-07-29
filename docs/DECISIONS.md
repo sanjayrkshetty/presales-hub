@@ -87,3 +87,12 @@
 ## D-013 - Session sequence
 
 0. Docs (this arc) -> 1. RBAC -> 2. Click-path (pgvector, approval->Temporal, stage validation) -> 3. Scrub+RAG+docx -> 4. UI redesign
+
+## D-014 - LangGraph for draft-only (reopened)
+
+- **Decision:** Use **LangGraph** for the **drafting** control-flow graph only (war-room Generate, copilot draft-section, `agent_engine` proposal_drafting).
+- **Not:** lifecycle stages, multi-day approvals, or Temporal replacement. Temporal remains the durable proposal control plane (D-006).
+- **Why:** loops, checkpoints, and optional human-in-the-loop inside drafting; clearer repair/fallback edges; portfolio signal.
+- **Still locked:** Qdrant (pgvector stays), fine-tune-first (RAG first), Supabase Auth.
+- **Grounding:** hard gate — one repair loop then `template_fallback` (no raw ungrounded Groq emit).
+- **Observability:** Langfuse node spans + grounding scores (not replaced by LangGraph Studio).

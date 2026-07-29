@@ -7,12 +7,18 @@ Three signals:
   3. Fabrication patterns — suspicious absolute claims or unsupported specifics
 
 Score = citation(0.3) + overlap*0.7 - fabrication_penalty*0.1 per flag
-Clamped to [0.0, 1.0]. Warnings are logged but never block responses.
+Clamped to [0.0, 1.0].
+
+Hard gate (D-014): use `passes_hard_gate` / `GROUNDING_HARD_MIN` inside the
+draft LangGraph — warn-only remains the default for legacy CopilotRunner calls.
 """
 import re
 from dataclasses import dataclass, field
 
 from memory_engine.storage.base import SearchResult
+
+# Minimum composite score to accept a Groq draft without repair/fallback.
+GROUNDING_HARD_MIN = 0.35
 
 _CITATION_RE = re.compile(
     r"\[(?:Source|Context|Pattern|Approval)[\s:][^\]]{1,80}\]",
@@ -89,3 +95,17 @@ def validate_grounding(
         fabrication_flags=fabrication_flags,
         warnings=warnings,
     )
+
+
+def passes_hard_gate(
+    report: GroundingReport,
+    *,
+    min_score: float = GROUNDING_HARD_MIN,
+    allow_empty_context: bool = False,
+) -> bool:
+    """True when draft is grounded enough to emit (no repair/fallback required)."""
+    if not allow_empty_context and "No context chunks provided" in (report.warnings or []):
+        return False
+    if report.fabrication_flags:
+        return False
+    return report.grounding_score >= min_score
