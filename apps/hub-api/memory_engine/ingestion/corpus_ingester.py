@@ -28,15 +28,22 @@ _DOCX_SUFFIXES = {".docx"}
 
 
 def _repo_root() -> Path:
-    # apps/hub-api/memory_engine/ingestion/corpus_ingester.py -> repo root
-    return Path(__file__).resolve().parents[4]
+    # Local: .../presales-hub/apps/hub-api/memory_engine/ingestion/this.py -> parents[4]
+    # Docker: /app/memory_engine/ingestion/this.py — walk up for corpus/ or apps/
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "corpus").is_dir() or (parent / "apps" / "hub-api").is_dir():
+            return parent
+    # Fall back to hub-api package root (/app in Docker)
+    return here.parents[2]
 
 
 def default_scrubbed_dirs() -> list[Path]:
     root = _repo_root()
+    app_root = Path(__file__).resolve().parents[2]  # hub-api or /app
     return [
         root / "corpus" / "scrubbed",
-        Path(__file__).resolve().parents[2] / "seed" / "scrubbed_demo",
+        app_root / "seed" / "scrubbed_demo",
     ]
 
 
