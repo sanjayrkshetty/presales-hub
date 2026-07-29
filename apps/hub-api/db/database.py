@@ -4,10 +4,16 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load repo-root .env then local overrides (Langfuse/Groq keys live at repo root).
-_ROOT = Path(__file__).resolve().parents[3]
-load_dotenv(_ROOT / ".env", override=False)
-load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=True)
+# Load nearest .env walking up (repo-root locally); app .env overrides.
+# Docker image is /app/... so parents[3] does not exist — never index blindly.
+_HERE = Path(__file__).resolve()
+_APP_ROOT = _HERE.parents[1]
+for _parent in _HERE.parents:
+    _candidate = _parent / ".env"
+    if _candidate.is_file():
+        load_dotenv(_candidate, override=False)
+        break
+load_dotenv(_APP_ROOT / ".env", override=True)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./presales_hub.db")
 
