@@ -58,11 +58,12 @@ Never force-push to `master`. Never commit secrets (`.env`, raw corpus).
 
 ## Session sequence (do not skip ahead without asking)
 
-0. Docs (PURPOSE / DECISIONS / CORPUS / AGENTS / ROADMAP) - anti-zero
-1. Finish API RBAC write-route gating
-2. Click-path HIGHs: pgvector CAST+rollback, approval -> Temporal signal, Temporal stage validation
-3. Scrub + DFIR RAG ingest + war-room Generate -> docx
-4. Full UI redesign: dark default, light toggle, teal/cyan, airy, role-based nav
+0. Docs (PURPOSE / DECISIONS / CORPUS / AGENTS / ROADMAP) - anti-zero — **done**
+1. Finish API RBAC write-route gating — partial (continue on `fix/part-b-remediation` as needed)
+2. Click-path HIGHs: pgvector CAST+rollback, approval -> Temporal signal, Temporal stage validation — **largely done**
+3. Scrub + DFIR RAG ingest + war-room Generate -> docx — **done** (Groq scrubbed-only + MiniLM embeddings)
+3b. G1 LangGraph draft-only (D-014) — **done**; Post-G1 reliability (pgvector dual-write / fail-closed / generate-docx 180s) in progress on `fix/post-g1-reliability`
+4. Full UI redesign: dark default, light toggle, teal/cyan, airy, role-based nav — **deferred** (Temporal stays lifecycle)
 
 ---
 

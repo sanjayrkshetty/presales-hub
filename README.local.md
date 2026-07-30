@@ -288,7 +288,7 @@ alembic revision --autogenerate -m "describe_change"
 | Rate limiting | `/auth/login` → 20 req/min (slowapi) |
 | Account lockout | 5 failed logins → locked 15 minutes |
 | Request size limit | Bodies > 10 MB rejected with 413 |
-| Request timeout | 30s default · 120s AI endpoints · 0 WebSocket |
+| Request timeout | 30s default · 120s AI/copilot prefixes · **180s** `generate-docx` (`TimeoutAPIRoute`) · 0 WebSocket |
 | CORS | Configurable `ALLOWED_ORIGINS` (wildcard in dev) |
 
 ---

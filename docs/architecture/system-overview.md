@@ -1,12 +1,13 @@
 # System Architecture — Presales Hub
 
-> Enterprise AI-Native Presales Operating System
+> Enterprise-style local stack for an AI-native presales operating console.  
+> Intent: [`PURPOSE.md`](../../PURPOSE.md) · Decisions: [`docs/DECISIONS.md`](../DECISIONS.md) · Draft AI: [`ai-pipeline.md`](./ai-pipeline.md)
 
-## Full System Topology
+## Full system topology
 
 ```mermaid
 graph TB
-    subgraph Browser["Browser (Next.js 15 · React 19)"]
+    subgraph Browser["Browser (Next.js · React)"]
         UI[Dashboard UI]
         WS_C[WebSocket Client]
         CP[Command Palette]
@@ -15,39 +16,40 @@ graph TB
 
     subgraph nginx["nginx Reverse Proxy"]
         RL[Rate Limiting<br/>100 req/min API<br/>20 req/min auth]
-        SSL[TLS Termination<br/>TLS 1.2/1.3]
+        SSL[TLS Termination]
         WS_P[WebSocket Proxy<br/>/ws/* upgrade]
     end
 
     subgraph API["Hub API (FastAPI :8003)"]
-        MW[Middleware Chain<br/>CorrelationId → TenantContext<br/>Timeout → SizeLimit<br/>SecurityHeaders → CORS]
-        AUTH[Auth & RBAC<br/>JWT · Lockout · slowapi]
-        ROUTERS[14 Routers<br/>proposals · approvals · sla<br/>analytics · ai · copilot<br/>agents · workflows · memory<br/>platform · ai_governance]
-        HEALTH[/api/health<br/>/api/ready<br/>/metrics]
-        WS_H[WebSocket Handlers<br/>/ws/activity<br/>/ws/sla-alerts<br/>/ws/events]
+        MW[Middleware<br/>CorrelationId · TenantContext<br/>Timeout · SizeLimit<br/>SecurityHeaders · CORS]
+        AUTH[Auth and RBAC<br/>JWT · Lockout · slowapi]
+        ROUTERS[Routers<br/>proposals · approvals · sla<br/>analytics · ai · copilot<br/>agents · workflows · memory]
+        DRAFT[LangGraph draft-only<br/>load→scrub→retrieve→expand<br/>→draft→validate→repair/fallback→emit]
+        HEALTH[/api/health · /api/ready · /metrics]
+        WS_H[WebSocket Handlers]
     end
 
     subgraph Worker["Temporal Worker (:8004)"]
-        WK[Workflow Activities<br/>proposal lifecycle<br/>SLA enforcement<br/>AI orchestration]
-        WH[Health Endpoint<br/>:8004/health]
+        WK[Lifecycle activities<br/>proposal stages · SLA<br/>not proposal text writer]
+        WH[Health :8004/health]
     end
 
     subgraph Data["Data Layer"]
-        PG[(PostgreSQL :5432<br/>Primary store<br/>Alembic migrations)]
-        RD[(Redis :6379<br/>Pub/Sub event bus<br/>Rate limit counters)]
-        TMP[Temporal :7233<br/>Workflow state<br/>Activity scheduling]
+        PG[(PostgreSQL :5432<br/>app rows + pgvector<br/>embedding vector 384)]
+        RD[(Redis :6379<br/>Pub/Sub · rate limits)]
+        TMP[Temporal :7233<br/>lifecycle state<br/>temporal-db separate]
     end
 
-    subgraph AI["AI Providers"]
-        ANT[Anthropic Claude<br/>Circuit breaker: 5 fail/60s]
-        OAI[OpenAI<br/>Circuit breaker: 5 fail/60s]
-        GRQ[Groq<br/>Circuit breaker: 5 fail/30s]
+    subgraph AI["AI (v1)"]
+        GRQ[Groq chat<br/>scrubbed payloads only]
+        EMB[Local MiniLM embeddings<br/>all-MiniLM-L6-v2 · 384-d]
     end
 
     subgraph Obs["Observability"]
-        PROM[Prometheus<br/>/metrics]
-        JAEGER[Jaeger<br/>:16686]
-        SENTRY[Sentry<br/>Error tracking]
+        PROM[Prometheus /metrics]
+        JAEGER[Jaeger]
+        LF[Langfuse · draft spans]
+        SENTRY[Sentry]
     end
 
     Browser <-->|HTTPS/WSS| nginx
@@ -55,17 +57,18 @@ graph TB
     API <-->|SQLAlchemy| PG
     API <-->|redis-py| RD
     API <-->|gRPC| TMP
-    API -->|OTLP traces| JAEGER
-    API -->|scrape| PROM
-    API -->|errors| SENTRY
+    DRAFT --> GRQ
+    DRAFT --> EMB
+    EMB --> PG
+    API -->|OTLP| JAEGER
+    DRAFT --> LF
     Worker <-->|gRPC| TMP
     Worker <-->|SQLAlchemy| PG
-    ROUTERS -->|circuit breaker| AI
     RD -->|pub/sub| WS_H
     WS_H -->|broadcast| WS_C
 ```
 
-## Request Flow
+## Request flow
 
 ```mermaid
 sequenceDiagram
@@ -78,38 +81,33 @@ sequenceDiagram
     B->>N: HTTPS Request
     N->>N: Rate limit check
     N->>A: HTTP (internal)
-    A->>A: CorrelationId middleware
-    A->>A: TenantContext middleware
-    A->>A: Auth/JWT validation
+    A->>A: CorrelationId · TenantContext · Auth
     A->>DB: Query (SQLAlchemy)
     DB-->>A: Result
     A->>R: Publish event (async)
-    R-->>A: Published
-    A-->>B: JSON Response + X-Correlation-ID
+    A-->>B: JSON + X-Correlation-ID
     R-->>A: Event subscriber
     A-->>B: WebSocket broadcast
 ```
 
-## Multi-Tenant Isolation
+## Multi-tenant isolation
 
 ```mermaid
 graph LR
-    subgraph T1["Tenant A (Enterprise)"]
-        U1[Users] --> R1[RBAC Roles]
-        R1 --> Q1[Quota: 100K tokens/mo]
+    subgraph T1["Tenant A"]
+        U1[Users] --> R1[RBAC]
+        R1 --> Q1[Quota]
     end
-    subgraph T2["Tenant B (Professional)"]
-        U2[Users] --> R2[RBAC Roles]
-        R2 --> Q2[Quota: 25K tokens/mo]
+    subgraph T2["Tenant B"]
+        U2[Users] --> R2[RBAC]
+        R2 --> Q2[Quota]
     end
 
-    T1 --> PG[(Shared PostgreSQL<br/>tenant_id partitioned)]
+    T1 --> PG[(Shared PostgreSQL<br/>tenant_id scoped)]
     T2 --> PG
-    T1 --> CB[Circuit Breakers<br/>per-tenant isolation]
-    T2 --> CB
 ```
 
-## Key Numbers
+## Key numbers
 
 | Metric | Value |
 |--------|-------|
@@ -119,9 +117,14 @@ graph LR
 | Redis port | 6379 |
 | PostgreSQL port | 5432 |
 | Request timeout (default) | 30s |
-| AI endpoint timeout | 120s |
+| AI / copilot prefix timeout | 120s (middleware) |
+| generate-docx timeout | **180s** (`TimeoutAPIRoute`, not the 30s default) |
 | Max request body | 10 MB |
 | Rate limit (login) | 20/min |
 | Account lockout | 5 fails → 15 min |
-| Circuit breaker recovery | 60s (AI), 30s (Temporal) |
+| Embedding model | all-MiniLM-L6-v2 (384-d) |
+| Chat (draft) | Groq on scrubbed-only |
+| Circuit breaker recovery | 60s (AI providers), 30s (Temporal) |
 | DLQ retry backoff | 1, 5, 15, 60, 240 min |
+
+Session 4 (full UI redesign) remains deferred; Temporal stays lifecycle-only.

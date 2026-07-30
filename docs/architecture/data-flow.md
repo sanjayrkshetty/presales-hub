@@ -1,13 +1,13 @@
 # Data Flow — Presales Hub
 
-## Real-Time Event Bus
+## Real-time event bus
 
 ```mermaid
 flowchart LR
     subgraph Backend
         API[Hub API] -->|publish| RD[(Redis Pub/Sub)]
-        API -->|on failure| DLQ[(Dead Letter Queue\nPostgreSQL)]
-        DLQ -->|retry backoff\n1→5→15→60→240 min| RD
+        API -->|on failure| DLQ[(Dead Letter Queue<br/>PostgreSQL)]
+        DLQ -->|retry backoff<br/>1→5→15→60→240 min| RD
         RD -->|subscribe| BR[Broadcaster]
         BR -->|fan-out| WS1[WebSocket /ws/activity]
         BR -->|fan-out| WS2[WebSocket /ws/sla-alerts]
@@ -15,7 +15,7 @@ flowchart LR
     end
 
     subgraph Frontend
-        WS1 --> RST[Realtime Store\nZustand]
+        WS1 --> RST[Realtime Store<br/>Zustand]
         WS2 --> RST
         WS3 --> RST
         RST -->|event log| AF[Activity Feed]
@@ -24,7 +24,7 @@ flowchart LR
     end
 ```
 
-## Proposal Lifecycle
+## Proposal lifecycle (Temporal)
 
 ```mermaid
 stateDiagram-v2
@@ -41,29 +41,39 @@ stateDiagram-v2
     awaiting_approval --> [*]: Rejected
 ```
 
-## AI Request Flow
+Durable stage transitions and approvals run on Temporal. **Draft text** is produced by the LangGraph draft graph (see [`ai-pipeline.md`](./ai-pipeline.md)), not by Temporal-as-writer.
+
+## AI draft request flow (war-room Generate)
 
 ```mermaid
 sequenceDiagram
-    participant FE as Frontend Copilot
+    participant FE as War room / Copilot
     participant API as Hub API
-    participant CB as Circuit Breaker
-    participant RAG as Memory/RAG
-    participant AI as AI Provider
+    participant G as LangGraph draft
+    participant VS as pgvector MiniLM
+    participant GR as Groq scrubbed-only
 
-    FE->>API: POST /copilot/assist
-    API->>RAG: Retrieve context chunks
-    RAG-->>API: Grounding sources (score ≥ 0.6)
-    API->>CB: Guard (anthropic|openai|groq)
-    CB->>AI: Prompt + context
-    AI-->>CB: Response
-    CB-->>API: Result (records success)
-    API-->>FE: {result, grounding_metadata, evaluation_score}
-
-    note over CB: On 5 consecutive failures:<br/>CLOSED→OPEN→HALF_OPEN<br/>Recovery after 60s
+    FE->>API: POST generate-docx / draft-section
+    Note over API: TimeoutAPIRoute 180s for generate-docx
+    API->>G: run_draft_graph
+    G->>G: load → scrub
+    G->>VS: retrieve + graph_expand
+    VS-->>G: scrubbed chunks
+    alt GROQ_API_KEY present
+        G->>GR: draft on scrubbed context
+        GR-->>G: markdown sections
+        G->>G: validate grounding
+        alt hard gate fail
+            G->>G: one repair then template_fallback
+        end
+    else no Groq / fallback mode
+        G->>G: template from retrieved chunks
+    end
+    G-->>API: emit section_map + meta
+    API-->>FE: editable draft / .docx
 ```
 
-## Database Schema (Core)
+## Database schema (core)
 
 ```mermaid
 erDiagram
@@ -86,3 +96,5 @@ erDiagram
         bool resolved
     }
 ```
+
+Vectors live in the same Postgres DB (`memory_chunks.embedding vector(384)` + `embedding_json`); see [`ai-pipeline.md`](./ai-pipeline.md) and [`docs/CORPUS.md`](../CORPUS.md).
