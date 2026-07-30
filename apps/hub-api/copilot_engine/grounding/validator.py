@@ -104,7 +104,9 @@ def passes_hard_gate(
     allow_empty_context: bool = False,
 ) -> bool:
     """True when draft is grounded enough to emit (no repair/fallback required)."""
-    if not allow_empty_context and "No context chunks provided" in (report.warnings or []):
+    if not allow_empty_context and any(
+        "No context chunks provided" in w for w in (report.warnings or [])
+    ):
         return False
     if report.fabrication_flags:
         return False

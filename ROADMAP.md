@@ -7,6 +7,7 @@ This document is the public point of view on where Presales Hub is and where it 
 deliberately honest about current maturity.
 
 **Canonical intent:** see [`PURPOSE.md`](PURPOSE.md) and [`docs/DECISIONS.md`](docs/DECISIONS.md).
+**AI topology:** see [`docs/architecture/ai-pipeline.md`](docs/architecture/ai-pipeline.md).
 
 ---
 
@@ -17,6 +18,10 @@ opportunities, multi-stage proposals, SME assignments, approval chains, and SLAs
 Presales Hub models that lifecycle as durable, observable, AI-assisted workflows instead of
 spreadsheets and email threads - and keeps sensitive drafting **in-house** via local RAG.
 
+**Motivation (personal):** organisational DLP blocks pasting sensitive content into public Generative AI,
+and trust in opaque public-AI agent tooling is thin. Design consequence: scrub before remote calls;
+embeddings stay local (MiniLM); chat/Generate may use Groq **only on scrubbed** payloads. See [`PURPOSE.md`](PURPOSE.md).
+
 This is a **personal** project (not a SISA product). Employer/public platforms may inspire the
 "central layer over BUs" story; they do not own this repo.
 
@@ -24,7 +29,7 @@ This is a **personal** project (not a SISA product). Employer/public platforms m
 
 1. **Security is a feature, not a footnote.** Auth, RBAC, scrubbed corpus, and honest docs.
 2. **Durable over best-effort.** Proposal lifecycles run on Temporal.
-3. **Private by default for AI.** Scrub -> retrieve -> generate locally (Ollama); no raw client docs in git.
+3. **Private by default for AI.** Scrub -> local embed (MiniLM) -> Groq on scrubbed-only -> editable docx; no raw client docs in git.
 4. **Honest maturity.** Ship what works, document what does not.
 
 ---
@@ -34,30 +39,43 @@ This is a **personal** project (not a SISA product). Employer/public platforms m
 **Foundation running locally** (FastAPI + Next.js + PostgreSQL/pgvector + Redis + Temporal):
 
 - Opportunity, proposal, approval, stakeholder, and analytics domains
-- Durable proposal-lifecycle workflows on Temporal (engine sound; UI/AI wiring still has gaps)
+- Durable proposal-lifecycle workflows on Temporal (engine sound; Session 4 UI still deferred)
 - Real-time dashboard via WebSocket event streaming
-- JWT auth (auth-on-routers and cookie/bootstrap fixes landed; route-level RBAC partially started)
-- Observability: health/ready, Prometheus, Jaeger
+- JWT auth + partial route-level RBAC
+- Observability: health/ready, Prometheus, Jaeger, Langfuse draft spans
 
-**Open work (ordered):** finish RBAC -> fix click-path HIGHs (incl. pgvector/copilot) -> scrubbed RAG Generate -> minimal dark/light UI redesign.
+**Sessions 0–3 + G1 landed (high level):**
+
+- Anti-zero docs (PURPOSE / DECISIONS / CORPUS / AGENTS)
+- Click-path HIGHs (pgvector CAST/rollback, approval → Temporal, stage validation) on remediation branches
+- Scrub + DFIR RAG ingest + war-room Generate → editable `.docx`
+- LangGraph **draft-only** graph (D-014): load → scrub → retrieve → graph_expand → draft → validate → repair/fallback → emit
+- Chat = Groq scrubbed-only; embeddings = local `all-MiniLM-L6-v2` (384-d); pgvector column + dual-write intent; fail-closed search when schema missing
+- `generate-docx` uses per-route **180s** `TimeoutAPIRoute` (not the 30s middleware default)
+
+**Open work (ordered):** Post-G1 reliability (pgvector dual-write / fail-closed hardening) → Session 4 UI redesign (deferred) → share/host scrubbed demo later.
 
 ---
 
 ## Roadmap
 
-### Now - Anti-zero docs + harden the click path
+### Done recently - Docs, click-path, scrub+RAG+docx, G1 draft graph
 
-- Keep PURPOSE / DECISIONS / CORPUS / AGENTS aligned with reality
-- Finish write-route RBAC (`fix/part-b-remediation`)
-- Fix pgvector session poison; bridge approvals to Temporal; validate Temporal stage transitions
-- Verify against browser behaviour, not only curl
+- PURPOSE / DECISIONS / CORPUS / AGENTS / architecture docs aligned with D-004 / D-006 / D-014
+- Scrub pipeline + DFIR pack ingest + Generate → docx
+- LangGraph drafting with grounding hard gate + template fallback
+- Temporal remains lifecycle-only (not proposal writer)
 
-### Next - In-house draft loop + simpler product UI
+### Now - Post-G1 reliability
 
-- Scrub pipeline + DFIR content pack ingest
-- War-room Generate -> editable docx (Ollama)
-- DFIR + empty VAPT/GRC packs in UI
+- pgvector `embedding vector(384)` migration + dual-write upsert
+- Fail-closed when USE_PGVECTOR and schema/extension missing (no silent JSON cosine for search)
+- Keep generate-docx within 180s route timeout under load
+
+### Next - Session 4 UI (deferred)
+
 - Full visual redesign: dark default, light toggle, teal/cyan, airy layout, role-based nav
+- DFIR + empty VAPT/GRC packs in UI
 - Same Temporal engine; simpler DFIR UI path (no workflow fork)
 
 ### Later - Share and deepen
@@ -65,7 +83,7 @@ This is a **personal** project (not a SISA product). Employer/public platforms m
 - Neon for scrubbed demo hosting
 - Optional SME availability Activity (calendar) with human confirm
 - Multi-user SaaS hardening if the product earns it
-- Deeper AI quality only after RAG demo works
+- Deeper AI quality only after RAG demo stays reliable
 
 ---
 
@@ -74,6 +92,7 @@ This is a **personal** project (not a SISA product). Employer/public platforms m
 - Not a general CRM.
 - Not fine-tune-first or public-AI pasting of client RFPs.
 - Not VA-as-the-product (parked).
+- Not replacing Temporal with LangGraph for multi-day approvals.
 - Not chasing feature breadth ahead of a clean demo loop.
 
 ---

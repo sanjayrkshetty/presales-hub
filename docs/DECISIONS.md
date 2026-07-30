@@ -88,8 +88,9 @@
 
 0. Docs (this arc) -> 1. RBAC -> 2. Click-path (pgvector, approval->Temporal, stage validation) -> 3. Scrub+RAG+docx -> 4. UI redesign
 
-## D-014 - LangGraph for draft-only (reopened)
+## D-014 - LangGraph for draft-only (reopened; G1 shipped)
 
+- **Status:** Implemented — `load_context` -> `scrub_inputs` -> `retrieve` -> `graph_expand` -> `draft` -> `validate` -> repair/fallback -> `emit` (`docs/architecture/ai-pipeline.md`).
 - **Decision:** Use **LangGraph** for the **drafting** control-flow graph only (war-room Generate, copilot draft-section, `agent_engine` proposal_drafting).
 - **Not:** lifecycle stages, multi-day approvals, or Temporal replacement. Temporal remains the durable proposal control plane (D-006).
 - **Why:** loops, checkpoints, and optional human-in-the-loop inside drafting; clearer repair/fallback edges; portfolio signal.

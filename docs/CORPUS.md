@@ -61,10 +61,12 @@ Pricing "understanding patterns" means structural/commercial section patterns fr
 
 ## Indexing stack
 
-- Store embeddings in **Postgres + pgvector** (same app DB).
-- Embed with local `sentence-transformers/all-MiniLM-L6-v2` (not Ollama for v1).
-- Chat/Generate uses Groq on **scrubbed** text only; template docx fallback if Groq is down.
-- Fix known pgvector session poison / CAST issues before relying on Generate in demos (`docs/DECISIONS.md` session 2).
+- Store embeddings in **Postgres + pgvector** (same app DB): native `memory_chunks.embedding vector(384)` plus `embedding_json` for SQLite/tests.
+- Embed with local `sentence-transformers/all-MiniLM-L6-v2` (**384** dims; not Ollama for v1).
+- **Dual-write (intended end state):** upsert writes JSON and the native vector column when the schema is present (hardening may land on the Post-G1 reliability branch).
+- **Fail-closed search:** when `USE_PGVECTOR` is true, missing extension/column must not silently fall back to app-side JSON cosine — run `alembic upgrade head` on a pgvector image.
+- Chat/Generate uses Groq on **scrubbed** text only; LangGraph draft graph (D-014) with one repair then `template_fallback` if Groq is down or grounding fails.
+- Session 2 CAST/rollback click-path fixes are prerequisite; do not demo Generate against a DB missing the vector column.
 
 ---
 
