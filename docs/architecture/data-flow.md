@@ -5,17 +5,17 @@
 ```mermaid
 flowchart LR
     subgraph Backend
-        API[Hub API] -->|publish| RD[(Redis Pub/Sub)]
-        API -->|on failure| DLQ[(Dead Letter Queue<br/>PostgreSQL)]
-        DLQ -->|retry backoff<br/>1→5→15→60→240 min| RD
+        API[Hub API] -->|publish| RD[("Redis Pub/Sub")]
+        API -->|on failure| DLQ[("Dead Letter Queue, PostgreSQL")]
+        DLQ -->|retry backoff 1, 5, 15, 60, 240 min| RD
         RD -->|subscribe| BR[Broadcaster]
-        BR -->|fan-out| WS1[WebSocket /ws/activity]
-        BR -->|fan-out| WS2[WebSocket /ws/sla-alerts]
-        BR -->|fan-out| WS3[WebSocket /ws/events]
+        BR -->|fan-out| WS1["WebSocket activity"]
+        BR -->|fan-out| WS2["WebSocket sla-alerts"]
+        BR -->|fan-out| WS3["WebSocket events"]
     end
 
     subgraph Frontend
-        WS1 --> RST[Realtime Store<br/>Zustand]
+        WS1 --> RST["Realtime Store, Zustand"]
         WS2 --> RST
         WS3 --> RST
         RST -->|event log| AF[Activity Feed]
@@ -35,7 +35,7 @@ stateDiagram-v2
     commercial_review --> legal_review: Commercial cleared
     legal_review --> awaiting_approval: Legal signed off
     awaiting_approval --> submitted: All approvals granted
-    submitted --> [*]: Won / Lost
+    submitted --> [*]: Won or Lost
 
     intake --> [*]: Declined
     awaiting_approval --> [*]: Rejected
@@ -47,16 +47,16 @@ Durable stage transitions and approvals run on Temporal. **Draft text** is produ
 
 ```mermaid
 sequenceDiagram
-    participant FE as War room / Copilot
+    participant FE as War room or Copilot
     participant API as Hub API
     participant G as LangGraph draft
     participant VS as pgvector MiniLM
     participant GR as Groq scrubbed-only
 
-    FE->>API: POST generate-docx / draft-section
+    FE->>API: POST generate-docx or draft-section
     Note over API: TimeoutAPIRoute 180s for generate-docx
     API->>G: run_draft_graph
-    G->>G: load → scrub
+    G->>G: load then scrub
     G->>VS: retrieve + graph_expand
     VS-->>G: scrubbed chunks
     alt GROQ_API_KEY present
@@ -66,11 +66,11 @@ sequenceDiagram
         alt hard gate fail
             G->>G: one repair then template_fallback
         end
-    else no Groq / fallback mode
+    else no Groq or fallback mode
         G->>G: template from retrieved chunks
     end
     G-->>API: emit section_map + meta
-    API-->>FE: editable draft / .docx
+    API-->>FE: editable draft or docx
 ```
 
 ## Database schema (core)

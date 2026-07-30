@@ -17,9 +17,9 @@ flowchart LR
     expand --> draft[draft]
     draft --> validate[validate]
     validate -->|pass| emit[emit]
-    validate -->|fail, repair_count &lt; 1| repair[repair]
+    validate -->|fail, repair_count under 1| repair[repair]
     repair --> validate
-    validate -->|fail after repair / no LLM| fallback[fallback]
+    validate -->|fail after repair or no LLM| fallback[fallback]
     fallback --> emit
 ```
 
@@ -52,8 +52,8 @@ Circuit breakers still wrap external provider + Temporal client calls for non-dr
 
 ```mermaid
 flowchart LR
-    Doc[Scrubbed source\nRFP / proposal / pack] -->|chunk| Embed
-    Embed[all-MiniLM-L6-v2\n384-d] -->|dual-write| VS[(PostgreSQL pgvector\nembedding vector(384)\n+ embedding_json)]
+    Doc["Scrubbed source: RFP, proposal, pack"] -->|chunk| Embed
+    Embed["all-MiniLM-L6-v2, 384-d"] -->|dual-write| VS[("PostgreSQL pgvector: embedding vector 384 + embedding_json")]
     Query[Scrubbed query] --> QEmbed[Query embed]
     QEmbed -->|cosine ANN| VS
     VS -->|top-k| Prompt[Draft graph context]
@@ -69,9 +69,9 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    API[Hub API] -->|schedule / signal| TW[Temporal workflows]
-    TW --> Life[Proposal stage lifecycle\napprovals · SLA]
-    Life --> DB[(PostgreSQL AgentTask / proposal state)]
+    API[Hub API] -->|schedule or signal| TW[Temporal workflows]
+    TW --> Life["Proposal stage lifecycle: approvals, SLA"]
+    Life --> DB[("PostgreSQL AgentTask and proposal state")]
     DB --> WS[WebSocket broadcast]
 ```
 
