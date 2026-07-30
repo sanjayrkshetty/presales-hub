@@ -9,9 +9,10 @@ from sqlalchemy.orm import Session
 
 from db.database import get_db
 from lib.dependencies import require_permission
+from middleware.timeout_route import TimeoutAPIRoute, with_timeout
 from models import Proposal, Opportunity
 
-router = APIRouter(prefix="/api/ai", tags=["ai"])
+router = APIRouter(prefix="/api/ai", tags=["ai"], route_class=TimeoutAPIRoute)
 
 
 class GenerateRequest(BaseModel):
@@ -106,6 +107,7 @@ async def generate_proposal(req: GenerateRequest, db: Session = Depends(get_db),
 
 
 @router.post("/proposals/{proposal_id}/generate-docx")
+@with_timeout(180)
 async def generate_docx(
     proposal_id: str,
     req: GenerateDocxRequest,
